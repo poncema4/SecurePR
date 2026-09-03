@@ -76,8 +76,6 @@ Gate Decision
 | Configuration | YAML |
 | Version Control | Git / GitHub |
 
-All planned software and services are free to use for this project. No paid APIs or hosted services are required for the MVP.
-
 ## Project Structure
 
 ```text
@@ -117,7 +115,7 @@ A pull request containing an intentionally vulnerable change will trigger the se
 - Large numbers of scanner integrations
 - Full vulnerability-management systems
 - Support for every programming language
-- Production SaaS deployment
+- Production deployment
 - Advanced ML-based vulnerability detection
 - Generic security scoring
 
