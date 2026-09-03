@@ -2,39 +2,34 @@
 
 **Secure Pull Request Security Gate**
 
-**Course:** Secure Software Development  
-**Project:** Final MVP / Proof of Concept
-
 ## Overview
 
-SecurePR is a DevSecOps proof of concept that places automated security checks into a pull-request workflow. The goal is to detect selected security issues before vulnerable code is merged and give the developer a clear pass or block decision.
+SecurePR is a DevSecOps proof of concept that places automated security checks into a pull-request workflow. The goal is to detect selected security issues before vulnerable code is merged and provide a clear pass or block decision.
 
 ## Problem
 
-Security issues can be found late in development when remediation is more expensive and disruptive. SecurePR tests how repeatable security checks can be placed directly into the development workflow.
+Security issues can be discovered late in development, making remediation more expensive and disruptive. SecurePR tests how repeatable security checks can be built directly into the development workflow.
 
 ## Objectives
 
-- Run security checks automatically when a pull request is opened or updated.
+- Run security checks automatically on pull requests.
 - Detect selected source-code security issues.
 - Detect committed secrets.
 - Check dependencies for known vulnerabilities.
 - Run selected security tests.
 - Report useful findings and remediation guidance.
-- Block or pass the pull request based on defined security requirements.
+- Block or pass a pull request based on defined requirements.
 
 ## MVP Scope
 
-The MVP will include:
-
-- A small sample application.
+- Small sample application.
 - GitHub pull-request automation.
 - SAST using CodeQL and/or Semgrep.
 - Secret detection using Gitleaks.
 - Dependency checks using pip-audit.
 - Security tests using pytest.
-- A simple security gate with `BLOCK` and `PASS` outcomes.
-- A demonstration of a vulnerable change being blocked and a corrected change passing.
+- Simple `BLOCK` and `PASS` outcomes.
+- Demonstration of a vulnerable change being blocked and a corrected change passing.
 
 ## Architecture / Workflow
 
@@ -68,16 +63,20 @@ Gate Decision
 
 ## Tech Stack
 
-- **Language:** Python
-- **Sample Application:** Python
-- **CI/CD:** GitHub Actions
-- **SAST:** CodeQL and/or Semgrep
-- **Secret Detection:** Gitleaks
-- **Dependency Security:** pip-audit
-- **Security Testing:** pytest
-- **Containers:** Docker
-- **Configuration:** YAML
-- **Version Control:** Git / GitHub
+| Area | Technology |
+|---|---|
+| Language | Python |
+| Sample Application | Python |
+| CI/CD | GitHub Actions |
+| SAST | CodeQL, Semgrep |
+| Secret Detection | Gitleaks |
+| Dependency Security | pip-audit |
+| Security Testing | pytest |
+| Containers | Docker |
+| Configuration | YAML |
+| Version Control | Git / GitHub |
+
+All planned software and services are free to use for this project. No paid APIs or hosted services are required for the MVP.
 
 ## Project Structure
 
@@ -102,7 +101,7 @@ SecurePR/
 - Secure coding
 - SAST
 - Secret management
-- Dependency/supply-chain security
+- Dependency and supply-chain security
 - Security testing
 - CI/CD
 - DevSecOps
