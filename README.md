@@ -7,53 +7,52 @@
 
 ## Overview
 
-SecurePR is a DevSecOps proof of concept that places automated security checks directly into a pull-request workflow.
+SecurePR is a DevSecOps proof of concept that places automated security checks into a pull-request workflow. The goal is to detect selected security issues before vulnerable code is merged and give the developer a clear pass or block decision.
 
-The MVP will use a small sample application and demonstrate what happens when vulnerable code is submitted: security checks run, findings are reported, and the pull request is either blocked or allowed to continue.
+## Problem
 
-The focus is on integrating security into the software development lifecycle rather than building another standalone vulnerability scanner.
+Security issues can be found late in development when remediation is more expensive and disruptive. SecurePR tests how repeatable security checks can be placed directly into the development workflow.
 
-## Project Goal
+## Objectives
 
-The main question SecurePR addresses is:
-
-> **Can security checks become a repeatable development gate before vulnerable code is merged?**
-
-The project will connect security requirements and threat modeling to practical automated checks and a clear merge decision.
-
-## MVP Scope
-
-- Use a small application as the codebase under review.
-- Trigger security checks from a GitHub pull request.
-- Run SAST against the source code.
+- Run security checks automatically when a pull request is opened or updated.
+- Detect selected source-code security issues.
 - Detect committed secrets.
 - Check dependencies for known vulnerabilities.
 - Run selected security tests.
-- Normalize or summarize important findings.
-- Block a pull request when required security checks fail.
-- Demonstrate the same workflow passing after the vulnerability is fixed.
+- Report useful findings and remediation guidance.
+- Block or pass the pull request based on defined security requirements.
 
-### Example Workflow
+## MVP Scope
+
+The MVP will include:
+
+- A small sample application.
+- GitHub pull-request automation.
+- SAST using CodeQL and/or Semgrep.
+- Secret detection using Gitleaks.
+- Dependency checks using pip-audit.
+- Security tests using pytest.
+- A simple security gate with `BLOCK` and `PASS` outcomes.
+- A demonstration of a vulnerable change being blocked and a corrected change passing.
+
+## Architecture / Workflow
 
 ```text
-Code Change
-    ↓
+Developer
+  ↓
 Pull Request
-    ↓
-Security Checks
-    ├── SAST
-    ├── Secret Detection
-    ├── Dependency Check
-    └── Security Tests
-    ↓
+  ↓
+GitHub Actions
+  ├── SAST
+  ├── Secret Detection
+  ├── Dependency Check
+  └── Security Tests
+  ↓
 Security Gate
-   ↙     ↘
-BLOCK    PASS
+  ↓
+BLOCK / PASS
 ```
-
-## SDLC Connection
-
-SecurePR will document a small threat model and use it to define security requirements for the sample application. Those requirements will then inform the automated checks.
 
 ```text
 Threat
@@ -67,31 +66,9 @@ Automated Check
 Gate Decision
 ```
 
-This connects the project's implementation to the secure-SDLC concepts covered in the course.
-
-## Planned Architecture
-
-```text
-Developer
-   ↓
-GitHub Repository
-   ↓
-Pull Request
-   ↓
-GitHub Actions
-   ├── SAST
-   ├── Secret Detection
-   ├── Dependency Analysis
-   └── Security Tests
-   ↓
-SecurePR Gate
-   ↓
-Block / Pass
-```
-
 ## Tech Stack
 
-- **Primary Language:** Python
+- **Language:** Python
 - **Sample Application:** Python
 - **CI/CD:** GitHub Actions
 - **SAST:** CodeQL and/or Semgrep
@@ -102,35 +79,38 @@ Block / Pass
 - **Configuration:** YAML
 - **Version Control:** Git / GitHub
 
-The MVP will use a small number of well-understood tools instead of trying to integrate every available security scanner.
-
-## Planned Repository Structure
+## Project Structure
 
 ```text
 SecurePR/
 ├── app/
-├── tests/
 ├── security/
-│   ├── rules/
-│   └── threat-model/
+├── tests/
 ├── scripts/
 ├── .github/
 │   └── workflows/
 ├── docker/
+├── docs/
 └── README.md
 ```
 
-The structure will separate the sample application, security logic, tests, automation, and documentation.
+## Security Concepts
 
-## Course Alignment
-
-SecurePR applies the course material on secure SDLC, security requirements, STRIDE/threat modeling, secure architecture, secure coding, SAST, secrets management, dependency security, security testing, CI/CD, DevSecOps, and shift-left security.
+- Secure SDLC
+- Security requirements
+- STRIDE and threat modeling
+- Secure coding
+- SAST
+- Secret management
+- Dependency/supply-chain security
+- Security testing
+- CI/CD
+- DevSecOps
+- Shift-left security
 
 ## Expected Demonstration
 
-The final MVP should show an intentionally vulnerable pull request being detected and blocked, followed by a corrected pull request passing the same security checks.
-
-The important result is the development workflow itself: **identify → report → remediate → verify**.
+A pull request containing an intentionally vulnerable change will trigger the security checks and be blocked. After the issue is fixed, the checks will run again and the pull request will pass.
 
 ## Out of Scope
 
@@ -142,6 +122,15 @@ The important result is the development workflow itself: **identify → report �
 - Advanced ML-based vulnerability detection
 - Generic security scoring
 
+## Future Enhancements
+
+- DAST with OWASP ZAP
+- Fuzzing
+- Container-image scanning
+- SBOM generation
+- Additional security checks
+- More detailed pull-request reporting
+
 ## Status
 
-This repository currently defines the project and MVP. Implementation will begin with the sample application, threat model, security requirements, and first automated gate.
+Planned MVP. Implementation will begin with the sample application, threat model, and first automated security gate.
