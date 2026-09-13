@@ -67,7 +67,7 @@ If Docker remains part of the implemented application, container configuration s
 
 A pull request shall be considered `BLOCK` when a defined blocking control fails. A pull request shall be considered `PASS` only when all required blocking controls complete successfully and no blocking finding remains.
 
-The exact blocking policy will be finalized with the first working workflow so it reflects actual tool behavior rather than an assumed scanner interface.
+The current Phase 2 workflow establishes five required baseline checks: Security Tests, Secret Detection, Semgrep SAST, Dependency Audit, and CodeQL. The clean baseline has passed all five. The exact vulnerable-finding-to-gate behavior will be documented from actual pull-request demonstrations rather than assumed scanner behavior.
 
 ## 5. Human Review Boundary
 
@@ -76,3 +76,5 @@ SecurePR shall document that automated checks are not a replacement for human se
 ## 6. Demonstration Requirement
 
 The completed project shall demonstrate at least one intentionally vulnerable pull request that is blocked by the security gate and a corrected version that passes. Demonstration secrets and credentials must be fake and must never be usable credentials.
+
+The demonstration will be performed on separate branches so the clean `main` baseline remains intact. Each demonstrated vulnerability will be documented only after the corresponding CI result has been observed.
