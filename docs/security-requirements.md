@@ -1,12 +1,11 @@
 # SecurePR Security Requirements
 
-## 1. Purpose
-
-SecurePR evaluates pull-request changes using layered security controls. The gate is intended to be reusable across the user's own repositories and is not limited to the Phase 2 Python sample application.
+## Overview
+SecurePR evaluates pull-request changes using layered security controls. The gate is reusable across the user's own repositories and is not limited to the Phase 2 Python sample application.
 
 These requirements define intended automated coverage. They are not a claim that automation can prove every security property.
 
-## 2. Core Requirements
+## Core Requirements
 
 SecurePR shall:
 
@@ -18,16 +17,17 @@ SecurePR shall:
 6. Analyze security-relevant CI/CD configuration where practical.
 7. Map implemented coverage to OWASP Top 10:2025 and related secure-coding principles.
 8. Detect high-confidence hard-coded credentials and privileged identity values.
-9. Aggregate duplicate scanner findings into one meaningful result where the findings represent the same issue.
+9. Aggregate duplicate scanner findings into one meaningful result without hiding distinct findings.
 10. Produce exactly one overall `PASS` or `BLOCK` decision.
 11. Explain blocking results and remediation steps.
 12. Always recommend human review in PASS and BLOCK remediation guidance.
 13. Never automatically modify source code, rotate credentials, or merge a pull request.
 14. Report unsupported or unavailable analysis coverage rather than silently treating it as secure.
 15. Remain reusable across the user's own repositories without requiring GitHub Marketplace publication.
-16. Provide a controlled final accuracy benchmark using TP, FP, TN, FN, precision, recall, and F1.
+16. Provide a controlled final accuracy benchmark using TP, FP, TN, precision, recall, and F1.
+17. Report the current accuracy-benchmark status on every PR without claiming unmeasured accuracy.
 
-## 3. OWASP Top 10:2025 Coverage Model
+## OWASP Top 10:2025 Coverage Model
 
 The Phase 4 coverage model includes:
 
@@ -46,7 +46,7 @@ Additional secure-coding concerns include secrets, SQL/command/template injectio
 
 The project must identify context-dependent areas as human-review boundaries rather than claiming that they are completely automated.
 
-## 4. Language and Repository Requirements
+## Language and Repository Requirements
 
 The gate shall detect applicable CodeQL-supported languages, including C/C++, C#, Go, Java/Kotlin, JavaScript/TypeScript, Python, Ruby, Rust, and Swift.
 
@@ -54,13 +54,13 @@ PHP and Scala are not supported by CodeQL in this MVP. Their presence must produ
 
 The gate shall detect common dependency manifests and only run ecosystem-specific audits when applicable.
 
-## 5. Finding Requirements
+## Finding Requirements
 
 A high-confidence hard-coded password, credential, or privileged username detected by SecurePR policy is a blocking finding.
 
-Multiple tools may report the same underlying issue. SecurePR shall normalize identical SARIF findings so the developer sees one meaningful finding while detailed tool logs remain available.
+Multiple tools may report the same underlying issue. SecurePR shall normalize identical SARIF findings using location, rule, and message so the developer sees one meaningful finding while detailed tool logs remain available. Distinct findings at the same location must remain distinct.
 
-## 6. Gate Requirements
+## Gate Requirements
 
 `PASS` requires every configured blocking control to succeed and no blocking normalized finding to remain.
 
@@ -70,11 +70,11 @@ There is no third gate state.
 
 Every PASS and BLOCK remediation section shall state that human review is always recommended.
 
-## 7. Human Review Boundary
+## Human Review Boundary
 
 Automated checks do not replace review of business logic, architecture, threat assumptions, authorization intent, deployment context, or other context-dependent security decisions. A PASS is not proof of zero vulnerabilities.
 
-## 8. Accuracy Requirement
+## Accuracy Requirement
 
 At the end of Phase 4, SecurePR shall execute a controlled benchmark containing known vulnerable and known safe cases.
 
@@ -93,4 +93,6 @@ Calculate:
 
 `F1 = 2 × (Precision × Recall) / (Precision + Recall)`
 
-The final report must state the benchmark scope and must not present the measurements as universal accuracy.
+Every PR must report either that the benchmark is pending or the latest measured TP, FP, TN, precision, recall, and F1. Before the benchmark is executed, no universal accuracy percentage may be claimed.
+
+The final report must state the benchmark scope, tested categories, tool configuration, and limitations. Measurements describe the tested corpus and configuration, not universal detection accuracy.
