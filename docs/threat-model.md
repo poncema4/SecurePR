@@ -62,14 +62,24 @@ Actions may have access to repository metadata, pull requests, artifacts, or tok
 | T-09 | Sensitive information exposed through logs or errors | SAST and security tests |
 | T-10 | Supply-chain risk in automation or dependencies | Dependency controls, action review, and least privilege |
 
-## 6. Phase 2 Baseline Assessment
+## 6. Phase 3 Assessment
 
-The clean Phase 2 baseline has now been exercised through GitHub Actions. The five current security jobs completed successfully. This establishes that the baseline application and security tooling execute without a blocking finding on `main`.
+The Phase 3 security-gate behavior has now been demonstrated with actual pull requests.
 
-The baseline result does not establish that every threat above is detectable. The next stage will introduce controlled vulnerabilities on separate pull-request branches and record which threats are actually detected by which controls.
+### T-01 — Secret committed
+
+A controlled synthetic AWS-style access key was introduced on a separate vulnerable demonstration branch. Gitleaks detected the value under `aws-access-token`, the Secret Detection job failed, and the Security Gate failed. No real credential was used.
+
+A separate corrected demonstration branch used an environment variable instead of committing a credential. Secret Detection passed and the Security Gate passed after all five required checks succeeded.
+
+### Gate integrity
+
+The explicit Security Gate correctly propagated the failed Secret Detection result into a `BLOCK` decision. In the corrected demonstration, all required results were successful and the gate returned `PASS`.
+
+The remaining threats in this model have not all been individually demonstrated. Their controls remain subject to future targeted tests, scanner findings, threat-model review, or human review as appropriate.
 
 ## 7. Risk Treatment
 
-SecurePR prioritizes threats that can be checked repeatedly in CI. Intentionally vulnerable demonstrations will use synthetic data and controlled code changes only. The project will not target production systems or real credentials.
+SecurePR prioritizes threats that can be checked repeatedly in CI. Intentionally vulnerable demonstrations use synthetic data and controlled code changes only. The project does not target production systems or real credentials.
 
 Context-dependent issues, especially business logic and some authorization/design decisions, remain subject to human review and threat modeling.
