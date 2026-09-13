@@ -52,6 +52,7 @@ jobs:
             scripts/repository_profile.py
             scripts/summarize_sarif.py
             .semgrep_securepr.yml
+            docs/accuracy/benchmark-results.csv
 
       - name: Set up Python for SecurePR tooling
         uses: actions/setup-python@v7
@@ -158,6 +159,9 @@ jobs:
       - name: Publish SecurePR result
         if: always()
         env:
+          PROFILE: ${{ steps.profile.outcome }}
+          CODEQL_LANGUAGES: ${{ steps.profile.outputs.codeql_languages }}
+          UNSUPPORTED_EXTENSIONS: ${{ steps.profile.outputs.unsupported_extensions }}
           PYTHON_INSTALL: ${{ steps.python-install.outcome }}
           PYTHON_TESTS: ${{ steps.python-tests.outcome }}
           NODE_TESTS: ${{ steps.node-tests.outcome }}
@@ -170,7 +174,7 @@ jobs:
           ACCURACY: ${{ steps.accuracy.outcome }}
         run: |
           blocking=0
-          for value in "$PYTHON_INSTALL" "$PYTHON_TESTS" "$NODE_TESTS" "$DEPENDENCY" "$GITLEAKS" "$SEMGREP" "$CODEQL_INIT" "$CODEQL_ANALYZE" "$FINDING_SUMMARY"; do
+          for value in "$PROFILE" "$PYTHON_INSTALL" "$PYTHON_TESTS" "$NODE_TESTS" "$DEPENDENCY" "$GITLEAKS" "$SEMGREP" "$CODEQL_INIT" "$CODEQL_ANALYZE" "$FINDING_SUMMARY"; do
             if [[ "$value" == "failure" ]]; then blocking=1; fi
           done
 
@@ -185,9 +189,16 @@ jobs:
           fi
 
           echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "### Repository Coverage" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Profile: ${PROFILE:-not available}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- CodeQL languages: ${CODEQL_LANGUAGES:-none detected}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Unsupported-by-CodeQL extensions: ${UNSUPPORTED_EXTENSIONS:-none detected}" >> "$GITHUB_STEP_SUMMARY"
+
+          echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "### Check Results" >> "$GITHUB_STEP_SUMMARY"
           echo "| Check | Result |" >> "$GITHUB_STEP_SUMMARY"
           echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Repository profile | ${PROFILE:-not applicable} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Python dependency installation | ${PYTHON_INSTALL:-not applicable} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Python project tests | ${PYTHON_TESTS:-not applicable} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| JavaScript/TypeScript tests | ${NODE_TESTS:-not applicable} |" >> "$GITHUB_STEP_SUMMARY"
