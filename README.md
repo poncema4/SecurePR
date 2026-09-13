@@ -1,113 +1,124 @@
 # SecurePR
 
-**Secure Pull Request Security Gate**
+## Secure Pull Request Security Gate
 
-## Overview
+SecurePR is a DevSecOps proof of concept that places repeatable security checks into a pull-request workflow for a small Python application. The goal is to demonstrate how security requirements can be translated into automated controls and a clear `PASS` or `BLOCK` decision before code is merged.
 
-SecurePR is a DevSecOps proof of concept that places automated security checks into a pull-request workflow. The goal is to detect selected security issues before vulnerable code is merged and provide a clear pass or block decision.
+SecurePR is not intended to claim complete vulnerability detection. Different security concerns require different controls, and some issues still require tests, threat modeling, or human review.
 
 ## Problem
 
-Security issues can be discovered late in development, making remediation more expensive and disruptive. SecurePR tests how repeatable security checks can be built directly into the development workflow.
+Security issues can enter software through source-code changes, exposed credentials, vulnerable dependencies, insecure configuration, weak cryptography, unsafe CI/CD workflows, and application behavior that static analysis cannot fully understand. SecurePR focuses on detecting a practical set of these issues early in the pull-request process.
 
-## Objectives
-
-- Run security checks automatically on pull requests.
-- Detect selected source-code security issues.
-- Detect committed secrets.
-- Check dependencies for known vulnerabilities.
-- Run selected security tests.
-- Report useful findings and remediation guidance.
-- Block or pass a pull request based on defined requirements.
-
-## MVP Scope
-
-- Small sample application.
-- GitHub pull-request automation.
-- SAST using CodeQL and/or Semgrep.
-- Secret detection using Gitleaks.
-- Dependency checks using pip-audit.
-- Security tests using pytest.
-- Simple `BLOCK` and `PASS` outcomes.
-- Demonstration of a vulnerable change being blocked and a corrected change passing.
-
-## Architecture / Workflow
+## Phase 1 Design
 
 ```text
 Developer
-  ↓
+   ↓
 Pull Request
-  ↓
+   ↓
 GitHub Actions
-  ├── SAST
-  ├── Secret Detection
-  ├── Dependency Check
-  └── Security Tests
-  ↓
+   ├── SAST
+   ├── Secret Detection
+   ├── Dependency Checks
+   ├── Security Tests
+   └── Workflow / Configuration Checks
+   ↓
 Security Gate
-  ↓
-BLOCK / PASS
+   ↓
+PASS / BLOCK
 ```
 
-```text
-Threat
-  ↓
-Security Requirement
-  ↓
-Security Control
-  ↓
-Automated Check
-  ↓
-Gate Decision
-```
+The project is designed so that the sample application can be evaluated by the security gate while the checks remain separated enough to be reused with another compatible repository later.
 
-## Tech Stack
+## Security Coverage
 
-| Area | Technology |
+The planned coverage includes:
+
+- Exposed API keys, tokens, passwords, private keys, and other secrets
+- SQL injection and other applicable injection flaws
+- Unsafe command execution
+- Path traversal
+- Unsafe deserialization
+- SSRF and XSS where the sample application provides a meaningful test surface
+- Authentication and authorization weaknesses through tests and applicable static analysis
+- Weak or unsafe cryptographic practices
+- Disabled TLS verification and related insecure configurations
+- Known vulnerable dependencies and dependency changes
+- GitHub Actions permissions and unsafe workflow input handling
+- Debug and insecure configuration
+- Sensitive logging and error-information disclosure
+- Fail-open and data-integrity issues
+- Container configuration issues if Docker remains part of the implementation
+- Security-design and business-logic issues through threat modeling and human review
+
+The project will only claim coverage that is demonstrated by the implemented controls and tests.
+
+## Planned Security Controls
+
+| Area | Control |
 |---|---|
-| Language | Python |
-| Sample Application | Python |
-| CI/CD | GitHub Actions |
-| SAST | CodeQL, Semgrep |
-| Secret Detection | Gitleaks |
-| Dependency Security | pip-audit |
-| Security Testing | pytest |
-| Containers | Docker |
-| Configuration | YAML |
-| Version Control | Git / GitHub |
+| SAST | CodeQL |
+| Additional SAST | Semgrep |
+| Secrets | Gitleaks |
+| Python dependencies | pip-audit |
+| Dependency changes | GitHub Dependency Review where supported |
+| Security behavior | pytest |
+| Workflow security | Dedicated workflow checks and review |
+| CI orchestration | GitHub Actions |
+| Application | Python |
+| Optional container support | Docker |
+
+## Expected Demonstration
+
+The completed project will demonstrate a clean baseline, an intentionally vulnerable pull request that is detected and blocked, and a corrected pull request that passes the required security controls.
+
+Demonstration credentials and secrets will be synthetic and non-sensitive.
 
 ## Project Structure
 
 ```text
 SecurePR/
 ├── app/
+│   └── sample application
 ├── security/
+│   ├── configuration
+│   └── security-related logic
 ├── tests/
+│   ├── unit/
+│   ├── security/
+│   └── integration/
 ├── scripts/
+│   └── local verification
+├── docs/
+│   ├── architecture.md
+│   ├── security-requirements.md
+│   ├── threat-model.md
+│   ├── security-checks.md
+│   └── testing.md
+├── evidence/
+│   └── verified results
 ├── .github/
 │   └── workflows/
 ├── docker/
-├── docs/
-└── README.md
+│   └── optional container files
+├── requirements.txt
+├── README.md
+└── .gitignore
 ```
 
 ## Security Concepts
 
 - Secure SDLC
 - Security requirements
-- STRIDE and threat modeling
+- STRIDE threat modeling
 - Secure coding
-- SAST
+- Static Application Security Testing (SAST)
 - Secret management
-- Dependency and supply-chain security
+- Dependency and software-supply-chain security
 - Security testing
-- CI/CD
-- DevSecOps
-- Shift-left security
-
-## Expected Demonstration
-
-A pull request containing an intentionally vulnerable change will trigger the security checks and be blocked. After the issue is fixed, the checks will run again and the pull request will pass.
+- CI/CD security
+- DevSecOps and shift-left security
 
 ## Out of Scope
 
@@ -122,12 +133,12 @@ A pull request containing an intentionally vulnerable change will trigger the se
 ## Future Enhancements
 
 - DAST with OWASP ZAP
-- Fuzzing
-- Container-image scanning
-- SBOM generation
-- Additional security checks
-- More detailed pull-request reporting
+- Fuzz testing
+- Container image scanning
+- SBOM generation and analysis
+- More project-specific security rules
+- Detailed pull-request security reporting
 
 ## Status
 
-Planned MVP. Implementation will begin with the sample application, threat model, and first automated security gate.
+**Phase 1 — design and documentation.** Requirements, architecture, security coverage, threat model, and testing strategy are established. Implementation begins in Phase 2 with the sample application and first working security gate.
