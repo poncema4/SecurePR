@@ -31,69 +31,85 @@ Run CodeQL, Semgrep, Gitleaks, pip-audit, and applicable workflow checks against
 
 Verify that GitHub Actions starts on the intended events, executes required controls, and produces the correct PASS/BLOCK behavior.
 
-## 3. Phase 2 Baseline Result
+## 3. Phase 3 Baseline Result
 
-The clean baseline has now been executed in GitHub Actions on `main`.
+The clean baseline has been verified in GitHub Actions. The five required controls passed, and the explicit Security Gate passed on the Phase 3 implementation pull request.
 
-The latest baseline run completed successfully with all five current jobs passing:
-
-| Control | Result |
+| Control | Clean baseline / corrected result |
 |---|---|
 | Security Tests | PASS |
 | Gitleaks Secret Detection | PASS |
 | Semgrep SAST | PASS |
 | pip-audit Dependency Audit | PASS |
 | CodeQL | PASS |
+| Security Gate | PASS |
 
-This is a verified baseline result, not a predicted result. The local verification scripts are also part of the Phase 2 implementation so the application tests and Python compilation can be reproduced on Linux/macOS and Windows.
+The local Windows PowerShell verification was also executed using `.venv` and produced `8 passed`.
 
-## 4. Required Demonstration Sequence
+## 4. Phase 3 Vulnerable Demonstration
 
-The security demonstrations will now proceed from the verified clean baseline:
+A separate pull request intentionally committed a synthetic AWS-style access key to `demo/intentional-secret.py`.
 
-1. Preserve the clean `main` baseline.
-2. Create a separate demonstration branch.
-3. Introduce one controlled, intentionally vulnerable change using synthetic/non-sensitive data.
-4. Open a pull request against `main`.
-5. Verify that the expected security control detects the issue.
-6. Verify that the security gate produces `BLOCK` or an equivalent failed required check.
-7. Capture evidence of the finding and gate decision without exposing sensitive data.
-8. Correct the vulnerability on the demonstration branch.
-9. Re-run the workflow on the corrected pull request.
-10. Verify that the required controls pass and the gate produces `PASS` or an equivalent successful required check.
-11. Capture evidence and update this document, the README, and the other project documentation with the actual results.
+The actual workflow result was:
 
-The vulnerable and corrected demonstrations will be kept separate from the clean baseline so `main` remains a known-good starting point.
+| Control | Vulnerable demonstration |
+|---|---|
+| Security Tests | PASS |
+| Gitleaks Secret Detection | FAIL — synthetic secret detected |
+| Semgrep SAST | PASS |
+| pip-audit Dependency Audit | PASS |
+| CodeQL | PASS |
+| Security Gate | FAIL / BLOCK |
 
-## 5. Safety Requirements
+Gitleaks reported the finding under its `aws-access-token` rule. The value was fake and non-sensitive. The failed Secret Detection job caused the Security Gate to fail as designed.
+
+The vulnerable pull request was not merged.
+
+## 5. Phase 3 Corrected Demonstration
+
+A separate clean branch was created from `main` so the corrected demonstration did not retain the vulnerable secret in its commit history. The corrected example used an environment variable rather than committing a credential value.
+
+The actual workflow result was:
+
+| Control | Corrected demonstration |
+|---|---|
+| Security Tests | PASS |
+| Gitleaks Secret Detection | PASS |
+| Semgrep SAST | PASS |
+| pip-audit Dependency Audit | PASS |
+| CodeQL | PASS |
+| Security Gate | PASS |
+
+The corrected pull request was also not merged, preserving a clean `main` baseline.
+
+## 6. Safety Requirements
 
 - Use fake secrets only.
 - Never use real API keys, passwords, private keys, tokens, or cloud credentials in demonstrations.
 - Keep vulnerable demonstrations limited to the sample application and repository.
 - Do not scan or attack production systems.
 - Avoid creating vulnerabilities that could affect unrelated users or infrastructure.
+- When a secret is detected, do not attempt to reuse it or treat it as a credential.
 
-## 6. Evidence
+## 7. Evidence
 
-Planned evidence includes:
+Verified Phase 3 evidence includes:
 
-- Successful baseline workflow
-- Local verification result
-- Secret-detection failure
-- SAST finding
-- Dependency finding where safely reproducible
-- Security-test result
-- `BLOCK` gate result
-- Corrected `PASS` result
-- Relevant GitHub Actions logs
-- Screenshots or exported results needed for the final report/presentation
+- Clean baseline workflow
+- Local `.venv` verification result
+- Gitleaks secret-detection failure
+- Gitleaks finding details for the synthetic AWS-style credential
+- `BLOCK` Security Gate result
+- Corrected pull-request workflow
+- `PASS` Security Gate result
+- Relevant GitHub Actions job results and logs
 
-Evidence will only be collected after the corresponding control has actually been executed.
+Screenshots can be collected from these completed runs for the final report and presentation.
 
-## 7. Completion Criteria
+## 8. Completion Criteria
 
 Phase 1 is complete when requirements, architecture, security coverage, threat model, and testing strategy are documented consistently with the planned MVP.
 
-Phase 2 baseline implementation is complete when the sample application, tests, local setup, and baseline security workflow are implemented and the required baseline controls pass. That baseline has now been verified.
+Phase 2 is complete when the sample application, tests, local setup, and baseline security workflow are implemented and the required baseline controls pass.
 
-The security-gate demonstration portion of Phase 2 is not considered complete until an intentionally vulnerable pull request is actually detected and blocked, a corrected version actually passes, evidence is collected, and the documentation reflects those real results.
+Phase 3 is complete when an explicit Security Gate is implemented, an intentionally vulnerable pull request is actually detected and blocked, a corrected pull request actually passes, the clean `main` baseline remains intact, and the documentation reflects the real results. These conditions have now been verified.
