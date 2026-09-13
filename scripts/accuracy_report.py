@@ -4,7 +4,10 @@ import csv
 import sys
 from pathlib import Path
 
-from scripts.accuracy_metrics import calculate
+try:
+    from scripts.accuracy_metrics import calculate
+except ModuleNotFoundError:
+    from accuracy_metrics import calculate
 
 
 DEFAULT_RESULTS = Path("docs/accuracy/benchmark-results.csv")
