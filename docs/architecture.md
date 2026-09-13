@@ -18,12 +18,12 @@ GitHub Actions
    ├── Dependency Audit (pip-audit)
    └── CodeQL SAST
    ↓
-Required Checks
+Security Gate
    ↓
 PASS / BLOCK
 ```
 
-The clean Phase 2 baseline currently executes five required security jobs. A failed required job causes the workflow/check suite to fail; the next demonstration stage will validate this behavior with an intentionally vulnerable pull request.
+Phase 3 adds an explicit Security Gate job. The gate runs after the five required security jobs and evaluates their GitHub Actions results. It uses an `always()` condition so a failed upstream security job still produces a visible gate decision.
 
 ## 3. Control Flow
 
@@ -38,16 +38,18 @@ Automated Check
   ↓
 Finding / Test Result
   ↓
-Gate Decision
+Security Gate
+  ↓
+PASS / BLOCK
 ```
 
-Each security concern is mapped to a requirement and one or more controls. The workflow should preserve enough tool output to explain a failure without exposing secrets.
+Each security concern is mapped to a requirement and one or more controls. The workflow preserves enough tool output to explain a failure without exposing the synthetic secret itself.
 
 ## 4. Main Components
 
 ### Sample Application
 
-The Phase 2 application is a deliberately small Flask service. It provides authentication, user-profile lookup, and input-validation behavior that can be exercised by tests and analyzed by security tooling.
+The Phase 2 application is a deliberately small Flask service. It provides authentication, user-profile, and input-validation behavior that can be exercised by tests and analyzed by security tooling.
 
 ### Security Test Suite
 
@@ -59,19 +61,15 @@ CodeQL and Semgrep provide complementary source-code analysis. CodeQL performs s
 
 ### Secret Detection
 
-Gitleaks scans repository history for credential-like material. Demonstration secrets will always be synthetic.
+Gitleaks scans repository changes for credential-like material. The Phase 3 demonstration verified this path with a synthetic AWS-style access key. Gitleaks identified the finding under `aws-access-token`, causing its job to fail.
 
 ### Dependency Analysis
 
 pip-audit checks the Python dependency requirements against known vulnerability information. The Phase 2 baseline dependency requirement was adjusted after CI identified a vulnerability in the earlier pytest 8.4.2 resolution; the current requirement is `pytest>=9.0.3,<10`.
 
-### GitHub Actions
+### Security Gate
 
-GitHub Actions orchestrates the controls. The workflow uses repository-read permissions plus the permissions required by CodeQL to publish security-analysis results. Workflow permissions and handling of untrusted pull-request data are themselves treated as security concerns.
-
-## 5. Current Phase 2 Gate Behavior
-
-The current baseline consists of five required workflow jobs:
+The Security Gate depends on the five required jobs:
 
 1. Security Tests
 2. Secret Detection
@@ -79,13 +77,19 @@ The current baseline consists of five required workflow jobs:
 4. Dependency Audit
 5. CodeQL
 
-For the clean baseline, all five jobs completed successfully. The next implementation step is to exercise failure behavior with controlled vulnerable pull requests and document exactly which required check detects each vulnerability.
+If all five jobs succeed, the gate prints a `PASS` decision. If any required job is not successful, the gate prints a `BLOCK` decision and fails the gate job.
 
-The project will not claim a specific scanner-to-gate behavior until it has been demonstrated with an actual pull request.
+## 5. Phase 3 Demonstration Results
+
+The intentional vulnerable demonstration used a separate pull request and a fake AWS-style credential. Gitleaks failed, while the other required controls completed successfully. The Security Gate then failed because Secret Detection was unsuccessful.
+
+The corrected demonstration started from clean `main` and used an environment variable instead of a committed credential. All five required jobs passed, and the Security Gate passed.
+
+The demonstration pull requests were not merged, so the clean `main` branch remained unchanged by the vulnerable or corrected example files.
 
 ## 6. Reusability
 
-Security checks and gate logic should remain sufficiently separated from the sample application's business logic so the workflow can later be adapted to another compatible repository. Reusability is a design goal, not a reason to build a full commercial platform.
+Security checks and gate logic remain sufficiently separated from the sample application's business logic so the workflow can later be adapted to another compatible repository. Reusability is a design goal, not a reason to build a full commercial platform.
 
 ## 7. Trust Boundaries
 
