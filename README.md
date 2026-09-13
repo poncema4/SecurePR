@@ -14,6 +14,7 @@ Developer
 Pull Request
    ↓
 One GitHub Actions Security Gate Job
+   ├── Python Runtime Policy
    ├── Security Tests
    ├── Secret Detection (Gitleaks)
    ├── Semgrep SAST
@@ -25,21 +26,20 @@ One PASS / BLOCK result
 Human review before merge
 ```
 
-The checks run as separate steps inside one job. This keeps the tools logically separated and visible in the Actions logs while giving the pull request one overall SecurePR status instead of five separate job-level results. A final step writes a short PASS/BLOCK summary with a table and a link to the full Actions run.
+The checks run as separate steps inside one job. This keeps the tools logically separated and visible in the Actions logs while giving the pull request one overall SecurePR status instead of a separate job for every tool. A final step writes a PASS/BLOCK summary with check results, remediation guidance, an accuracy boundary, and a link to the full Actions run.
+
+## Phase 3 — Security Gate
 
 The sample application is intentionally small so the project can focus on demonstrating security controls rather than building a large product.
-
-## Phase 3 — Security Gate Demonstrated
-
-### Clean baseline
 
 The repository contains:
 
 - A small Flask sample application
-- Password-hash-based authentication logic using Werkzeug
+- Password-hash-based authentication using Werkzeug
 - Login, user-profile, and input-validation endpoints
-- Pytest security and behavior tests
+- Organized pytest unit and security tests
 - Cross-platform local setup and verification scripts
+- A Python runtime policy with upgrade guidance
 - GitHub Actions security workflow
 - CodeQL SAST
 - Semgrep SAST
@@ -48,74 +48,42 @@ The repository contains:
 - Python compilation verification
 - A single SecurePR Security Gate job with an explicit PASS/BLOCK result
 
-The dependency baseline was corrected after CI identified a known vulnerability in the earlier pytest 8.4.2 resolution. `requirements.txt` now requires `pytest>=9.0.3,<10`.
+The dependency baseline uses `pytest>=9.0.3,<10` after CI identified a vulnerability in the earlier pytest 8.4.2 resolution.
 
-### Verified clean baseline
+### PASS/BLOCK reporting
 
-The earlier Phase 3 clean baseline passed all required controls:
+The final workflow reports the same structure for both outcomes:
 
-- Security Tests — PASS
-- Secret Detection — PASS
-- Semgrep SAST — PASS
-- Dependency Audit — PASS
-- CodeQL — PASS
-- Security Gate — PASS
+1. Overall SecurePR result
+2. Check Results table
+3. **Fixes to make this PASS**
+4. Remediation
+5. Accuracy boundary
+6. Full Actions run link
 
-The new single-job gate architecture is being verified again after the Phase 3 refinement before the phase is declared complete.
+For a BLOCK, the fixes section explains why each failed control matters, what the developer should change, and the expected result after remediation. For a PASS, it states that there are no blocking fixes and that human review remains required.
 
-### Controlled vulnerable-PR demonstration
+SecurePR does not automatically edit source code, rotate credentials, or merge a pull request. The developer reviews the finding, applies the fix, pushes the change, and lets the gate run again.
 
-A separate Phase 3 demonstration pull request intentionally introduced a **synthetic AWS-style access key** into `demo/intentional-secret.py`. No real credential was used.
+### Runtime policy
 
-Gitleaks detected the value using its `aws-access-token` rule. The finding was reported against the demonstration file and the Secret Detection control failed. The Security Gate then failed because one of its required controls was unsuccessful.
+`.python-version` declares Python 3.12 for the project. SecurePR requires Python 3.11 or newer. The runtime policy is intentionally separate from `pip-audit`: the runtime control checks the Python interpreter policy, while pip-audit checks known vulnerabilities in Python packages.
 
-The demonstrated result was therefore:
+### Accuracy and false-positive / false-negative handling
 
-```text
-Synthetic secret introduced
-        ↓
-Gitleaks → BLOCKING FINDING
-        ↓
-Secret Detection → FAIL
-        ↓
-SecurePR Security Gate → BLOCK
-```
+SecurePR does not claim perfect detection accuracy. Security scanners can produce false positives, while static analysis can miss vulnerabilities that depend on runtime behavior, business logic, configuration, or code paths outside a tool's coverage.
 
-The vulnerable demonstration was kept off `main` and the demonstration PR was closed without merging it.
+The design uses layered controls rather than relying on one scanner:
 
-### Corrected-PR demonstration
-
-A separate clean demonstration branch was created from `main`. Instead of committing a credential, the corrected example read the credential from the execution environment with `os.getenv()`.
-
-The corrected pull request passed all five required controls and the Security Gate. It was also closed without merging, so `main` remained the clean project baseline.
-
-### PASS/BLOCK reporting and remediation policy
-
-SecurePR is intentionally concise at the top level:
-
-- **🟢 PASS** — the required automated checks completed successfully and no blocking result was reported by SecurePR.
-- **🔴 BLOCK** — at least one required control failed and the PR should be reviewed before merging.
-
-The summary identifies each control, its result, what it checks, and a link to the full Actions run. The detailed tool output remains available in the individual workflow steps.
-
-SecurePR does **not** automatically edit source code or merge a pull request. That is deliberate: an automated scanner can produce a false positive, and automatically changing or merging code could make the situation worse. The normal remediation loop is to review the finding, fix the PR, push the change, and let SecurePR run again.
-
-A future opt-in remediation feature could propose or prepare changes, but it should require an explicit user action and remain separate from the blocking gate.
-
-## Accuracy and False-Positive / False-Negative Handling
-
-SecurePR does not claim perfect detection accuracy. Security scanners can produce false positives, while static analysis can miss vulnerabilities that depend on runtime behavior, business logic, configuration, or a code path outside the tool's coverage.
-
-The Phase 3 design reduces these risks by layering controls rather than relying on one scanner:
-
-- Gitleaks checks committed secret patterns and was validated with a controlled synthetic secret.
+- Gitleaks checks committed secret patterns.
 - Semgrep and CodeQL provide complementary static analysis.
 - pip-audit checks known dependency vulnerabilities.
 - Pytest verifies security behavior that static analysis cannot prove reliably.
+- The Python runtime policy rejects unsupported runtimes and provides upgrade guidance.
 - Threat modeling and human review cover design and business-logic issues that automation cannot reliably determine.
-- Vulnerable and corrected demonstrations are used to verify that the gate actually blocks and passes the expected cases.
+- Controlled vulnerable and corrected demonstrations verify that the gate can block and pass the expected cases.
 
-A blocking result means **review required**, not that the scanner is infallible. A passing result means the configured controls passed; it does not prove that the application contains no vulnerabilities.
+A PASS means the configured controls passed; it does not prove that the application is vulnerability-free. A BLOCK means review is required; it does not by itself prove that a scanner finding is exploitable.
 
 ## Local Setup and Verification
 
@@ -129,80 +97,43 @@ chmod +x scripts/setup.sh scripts/verify.sh
 ./scripts/verify.sh
 ```
 
-The setup script creates `.venv` and installs the dependency ranges from `requirements.txt`. The verification script automatically uses the local virtual environment when it exists.
-
 ### Windows (PowerShell)
-
-If PowerShell's execution policy prevents local scripts from running, allow scripts for the current PowerShell process only:
 
 ```powershell
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
-```
-
-Then run:
-
-```powershell
 .\scripts\setup.ps1
 .\scripts\verify.ps1
 ```
 
-The PowerShell setup script creates `.venv` and installs the project dependencies. The verification script uses the local virtual environment automatically when it exists.
-
-## What Has Been Tested
-
-### Local baseline
-
-The Windows PowerShell setup and verification were executed successfully using `.venv`:
+## Test Organization
 
 ```text
-8 passed in 0.47s
-SecurePR verification passed.
+tests/
+├── __init__.py
+├── unit/
+│   └── test_app_endpoints.py
+└── security/
+    ├── test_authentication.py
+    ├── test_input_validation.py
+    └── test_python_runtime.py
 ```
 
-### GitHub Actions
-
-The workflow has been tested on both clean and intentionally vulnerable pull-request states. The vulnerable demonstration produced a real Gitleaks finding and a failed Security Gate. The corrected demonstration produced successful results for all five required controls and a successful Security Gate.
-
-The Phase 3 refinement is also verified through a new clean `main` workflow run before Phase 3 is considered complete.
-
-## Security Coverage
-
-The planned coverage includes:
-
-- Exposed API keys, tokens, passwords, private keys, and other secrets
-- SQL injection and other applicable injection flaws
-- Unsafe command execution
-- Path traversal
-- Unsafe deserialization
-- SSRF and XSS where the sample application provides a meaningful test surface
-- Authentication and authorization weaknesses through tests and applicable static analysis
-- Weak or unsafe cryptographic practices
-- Disabled TLS verification and related insecure configurations
-- Known vulnerable dependencies and dependency changes
-- GitHub Actions permissions and unsafe workflow input handling
-- Debug and insecure configuration
-- Sensitive logging and error-information disclosure
-- Fail-open and data-integrity issues
-- Container configuration issues if Docker becomes part of the implementation
-- Security-design and business-logic issues through threat modeling and human review
-
-The project only claims coverage that is demonstrated by the implemented controls and tests. The Phase 3 demonstrations specifically verify the secret-detection path and PASS/BLOCK gate behavior.
+The suite covers endpoint behavior, authentication success/failure, password hashing, invalid input, input-size boundaries, and the Python runtime policy.
 
 ## Security Controls
 
-| Area | Control | Phase 3 status |
+| Area | Control | Status |
 |---|---|---|
-| SAST | CodeQL | Baseline and corrected PR verified |
-| Additional SAST | Semgrep | Baseline and corrected PR verified |
-| Secrets | Gitleaks | Clean baseline passed; synthetic secret was detected and blocked |
-| Python dependencies | pip-audit | Baseline and corrected PR verified |
-| Dependency changes | GitHub Dependency Review where supported | Conditional / not yet demonstrated |
-| Security behavior | pytest | Baseline and corrected PR verified |
-| Security Gate | Single-job PASS/BLOCK result | Refinement implemented; final clean run pending |
-| Workflow security | Workflow permissions and review | Implemented and reviewed |
-| CI orchestration | GitHub Actions | Verified |
+| Runtime | Python runtime policy | Implemented and tested |
+| SAST | CodeQL | Implemented and tested in CI |
+| Additional SAST | Semgrep | Implemented and tested in CI |
+| Secrets | Gitleaks | Synthetic-secret BLOCK demonstrated |
+| Python dependencies | pip-audit | Vulnerable dependency BLOCK demonstrated and corrected |
+| Security behavior | pytest | Organized unit/security suite implemented |
+| Security Gate | Single-job PASS/BLOCK result | Implemented with detailed remediation guidance |
+| Workflow security | Workflow permissions and review | Implemented |
+| CI orchestration | GitHub Actions | Implemented |
 | Application | Python / Flask | Implemented |
-| Optional container support | Docker | Conditional; not currently required |
 
 ## Project Structure
 
@@ -211,14 +142,24 @@ SecurePR/
 ├── app/
 │   ├── __init__.py
 │   └── app.py
+├── security/
+│   ├── __init__.py
+│   └── python_runtime.py
 ├── tests/
 │   ├── __init__.py
-│   └── test_app.py
+│   ├── unit/
+│   │   └── test_app_endpoints.py
+│   └── security/
+│       ├── test_authentication.py
+│       ├── test_input_validation.py
+│       └── test_python_runtime.py
 ├── scripts/
+│   ├── __init__.py
 │   ├── setup.sh
 │   ├── setup.ps1
 │   ├── verify.sh
-│   └── verify.ps1
+│   ├── verify.ps1
+│   └── check_python_version.py
 ├── docs/
 │   ├── architecture.md
 │   ├── security-requirements.md
@@ -228,6 +169,7 @@ SecurePR/
 ├── .github/
 │   └── workflows/
 │       └── security.yml
+├── .python-version
 ├── requirements.txt
 ├── README.md
 └── .gitignore
@@ -265,10 +207,8 @@ SecurePR/
 - SBOM generation and analysis
 - More project-specific security rules
 - Detailed pull-request security reporting
-- Workflow-specific security linting
-- Broader vulnerable-PR demonstrations for selected SAST findings
 - Explicit, user-triggered remediation proposals that never merge automatically
 
 ## Status
 
-**Phase 3 — security gate refinement in final verification.** The clean baseline, intentional synthetic-secret blocking demonstration, corrected passing demonstration, single-job gate design, concise PASS/BLOCK reporting, and no-auto-merge policy are implemented. The final post-refinement workflow run must pass before Phase 3 is declared complete.
+**Phase 3 — final verification.** The single-job security gate, layered security controls, organized security tests, Python runtime policy, detailed PASS/BLOCK reporting, no-auto-remediation policy, and protected `main` ruleset are implemented. Final completion requires the controlled PASS and BLOCK enforcement tests to succeed as intended and the production implementation PR to merge cleanly into `main`.
