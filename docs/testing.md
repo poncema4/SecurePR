@@ -1,18 +1,9 @@
 # SecurePR Testing Strategy
 
-## 1. Testing Goals
+## Overview
+Testing must show that SecurePR can detect defined security problems, block unsafe pull requests, allow corrected changes to pass, operate against repositories other than the Flask sample, and report its security coverage and accuracy limits honestly.
 
-Testing must show that SecurePR can:
-
-1. Detect defined security problems.
-2. Block a pull request when a required blocking control fails.
-3. Allow a corrected pull request to pass.
-4. Operate against repositories other than its Flask sample.
-5. Produce one clear overall PASS/BLOCK result without unnecessary duplicate findings.
-6. Report coverage boundaries instead of silently treating unavailable analysis as secure.
-7. Produce reproducible results from actual tool execution.
-
-## 2. Development-Time Tests
+## Development-Time Tests
 
 During implementation, run targeted tests for changed scripts and configuration so broken code is not knowingly committed. These are development checks, not the final Phase 4 accuracy claim.
 
@@ -20,13 +11,16 @@ Current Phase 4 test areas include:
 
 - repository/language detection
 - unsupported-language detection
-- SARIF parsing and normalized finding keys
+- SARIF parsing and conservative normalized finding keys
 - custom SecurePR Semgrep configuration
 - accuracy-metric formula implementation
+- per-run accuracy status reporting
 - existing Flask security tests
 - workflow YAML/configuration consistency
 
-## 3. Final Phase 4 Validation
+A finding normalization test must prove both that identical cross-tool findings can be grouped and that distinct findings at the same file/line are not incorrectly collapsed.
+
+## Final Phase 4 Validation
 
 The comprehensive validation occurs **at the end of Phase 4**, after implementation and documentation are stable.
 
@@ -42,13 +36,13 @@ The final sequence is:
 8. Test safe edge cases to identify false positives.
 9. Test known vulnerable cases that are difficult for the configured tools to detect to measure false negatives.
 10. Record every benchmark case and expected classification.
-11. Calculate TP, FP, TN, FN, precision, recall, and F1.
+11. Calculate TP, FP, TN, precision, recall, and F1.
 12. Record the tested categories, tool configuration, limitations, and coverage boundaries.
 13. Audit all documentation against the final implementation and measurements.
 14. Merge the one consolidated Phase 4 PR.
 15. Verify the post-merge `main` workflow passes.
 
-## 4. Accuracy Metrics
+## Accuracy Metrics
 
 For the controlled benchmark:
 
@@ -63,9 +57,11 @@ For the controlled benchmark:
 
 `F1 = 2 × (Precision × Recall) / (Precision + Recall)`
 
+Every PR reports the current benchmark status. Before the final benchmark exists, the status is explicitly **Benchmark pending — no accuracy percentage is claimed**. After benchmark results are committed, every PR reports the latest measured TP, FP, TN, precision, recall, and F1.
+
 Do not claim 90% or 100% accuracy without measured results. If the benchmark produces lower or higher values, report the actual result and explain the corpus limitations.
 
-## 5. PASS/BLOCK and Human Review
+## PASS/BLOCK and Human Review
 
 There are exactly two gate outcomes:
 
@@ -74,11 +70,15 @@ There are exactly two gate outcomes:
 
 There is no separate `REVIEW` gate state. Human review is always recommended for both outcomes, especially for business logic, design, authorization intent, architecture, and findings that may be false positives.
 
-## 6. PR Versus Main
+## PR Versus Main
 
 A passing PR does not guarantee that the post-merge `main` workflow will pass. The PR run and push-to-main run are separate executions. Final validation therefore requires both.
 
-## 7. Safety
+## One-PR Phase Workflow
+
+Phase 4 uses one feature branch and one consolidated PR. If a check fails, fix the same branch and same PR. Do not create another PR for the phase. Before merge, audit all relevant implementation and documentation again.
+
+## Safety
 
 - Use synthetic secrets only.
 - Never use real API keys, passwords, tokens, private keys, or cloud credentials.
@@ -86,6 +86,6 @@ A passing PR does not guarantee that the post-merge `main` workflow will pass. T
 - Do not test production systems.
 - Do not automatically exploit discovered vulnerabilities.
 
-## 8. Completion Criteria
+## Completion Criteria
 
 Phase 4 is complete only when implementation, local verification, reusable-repository demonstrations, final benchmark metrics, documentation audit, one consolidated PR, merge, and post-merge `main` verification all pass.
