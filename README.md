@@ -128,7 +128,7 @@ The suite covers endpoint behavior, authentication success/failure, password has
 | SAST | CodeQL | Implemented and tested in CI |
 | Additional SAST | Semgrep | Implemented and tested in CI |
 | Secrets | Gitleaks | Synthetic-secret BLOCK demonstrated |
-| Python dependencies | pip-audit | Vulnerable dependency BLOCK demonstrated and corrected |
+| Python dependencies | pip-audit | Implemented and tested in CI; baseline vulnerability remediation completed |
 | Security behavior | pytest | Organized unit/security suite implemented |
 | Security Gate | Single-job PASS/BLOCK result | Implemented with detailed remediation guidance |
 | Workflow security | Workflow permissions and review | Implemented |
@@ -211,4 +211,4 @@ SecurePR/
 
 ## Status
 
-**Phase 3 — final verification.** The single-job security gate, layered security controls, organized security tests, Python runtime policy, detailed PASS/BLOCK reporting, no-auto-remediation policy, and protected `main` ruleset are implemented. Final completion requires the controlled PASS and BLOCK enforcement tests to succeed as intended and the production implementation PR to merge cleanly into `main`.
+**Phase 3 — complete.** The single-job security gate, layered security controls, organized security tests, Python runtime policy, detailed PASS/BLOCK reporting, no-auto-remediation policy, and protected `main` ruleset are implemented and validated. The controlled vulnerable and corrected demonstrations passed their intended BLOCK/PASS outcomes, and the post-merge `main` workflow was verified successfully.
