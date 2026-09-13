@@ -1,0 +1,27 @@
+rules:
+  - id: securepr-hardcoded-password
+    languages: [generic]
+    message: Hard-coded password or credential value detected; use an approved secret-management mechanism instead.
+    severity: ERROR
+    patterns:
+      - pattern-regex: |
+          (?i)\b(password|passwd|pwd|secret|api[_-]?key|access[_-]?key|token)\s*[:=]\s*["'][^"'\n]{8,}["']
+    paths:
+      exclude:
+        - tests/**
+        - docs/**
+        - .venv/**
+        - node_modules/**
+  - id: securepr-hardcoded-privileged-username
+    languages: [generic]
+    message: Hard-coded privileged username detected; review whether privileged identity data belongs in source code.
+    severity: ERROR
+    patterns:
+      - pattern-regex: |
+          (?i)\b(username|user_name|login)\s*[:=]\s*["'](admin|administrator|root|superuser)["']
+    paths:
+      exclude:
+        - tests/**
+        - docs/**
+        - .venv/**
+        - node_modules/**

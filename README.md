@@ -2,9 +2,11 @@
 
 ## Secure Pull Request Security Gate
 
-SecurePR is a DevSecOps proof of concept that places repeatable security checks into a pull-request workflow for a small Python application. The project demonstrates how security requirements are translated into automated controls and a clear security-gate decision before code is merged.
+SecurePR is a reusable DevSecOps PR security gate. It orchestrates multiple security-analysis engines and project checks, aggregates their results, and produces one clear `PASS` or `BLOCK` decision before a pull request is merged.
 
-SecurePR is not intended to claim complete vulnerability detection. Different security concerns require different controls, and some issues still require tests, threat modeling, or human review.
+The Phase 2 Flask application remains a controlled sample target. It is not the product boundary: Phase 4 makes the gate repository-aware and broadly multi-language for the user's own repositories.
+
+SecurePR does not claim complete vulnerability detection. Different security concerns require different controls, and design/business-logic issues can still require human review.
 
 ## Architecture
 
@@ -13,81 +15,95 @@ Developer
    ↓
 Pull Request
    ↓
-One GitHub Actions Security Gate Job
-   ├── Python Runtime Policy
-   ├── Security Tests
-   ├── Secret Detection (Gitleaks)
-   ├── Semgrep SAST
-   ├── Dependency Audit (pip-audit)
-   └── CodeQL SAST
+SecurePR Security Gate
+   ├── Repository / language profiling
+   ├── CodeQL semantic SAST
+   ├── Semgrep SAST + SecurePR rules
+   ├── Gitleaks secret detection
+   ├── Applicable dependency audits
+   ├── Project security/correctness tests
+   └── Normalized finding aggregation
    ↓
 One PASS / BLOCK result
    ↓
-Human review before merge
+Human review is always recommended
 ```
 
-The checks run as separate steps inside one job. This keeps the tools logically separated and visible in the Actions logs while giving the pull request one overall SecurePR status instead of a separate job for every tool. A final step writes a PASS/BLOCK summary with check results, remediation guidance, an accuracy boundary, and a link to the full Actions run.
+SecurePR is the **harness/orchestration and policy layer**. CodeQL, Semgrep, Gitleaks, dependency auditing, and project tests are the analysis engines and evidence sources.
 
-## Phase 3 — Security Gate
+## Phase Plan
 
-The sample application is intentionally small so the project can focus on demonstrating security controls rather than building a large product.
+### Phase 1 — Planning & Security Design — complete
 
-The repository contains:
+Security requirements, architecture, threat model, security coverage matrix, testing strategy, and project documentation were established.
 
-- A small Flask sample application
-- Password-hash-based authentication using Werkzeug
-- Login, user-profile, and input-validation endpoints
-- Organized pytest unit and security tests
-- Cross-platform local setup and verification scripts
-- A Python runtime policy with upgrade guidance
-- GitHub Actions security workflow
-- CodeQL SAST
-- Semgrep SAST
-- Gitleaks secret detection
-- pip-audit dependency auditing
-- Python compilation verification
-- A single SecurePR Security Gate job with an explicit PASS/BLOCK result
+### Phase 2 — Application & Security-Test Foundation — complete
 
-The dependency baseline uses `pytest>=9.0.3,<10` after CI identified a vulnerability in the earlier pytest 8.4.2 resolution.
+The controlled Flask application, organized pytest suite, local setup/verification scripts, Python runtime policy, and baseline security foundation were implemented.
 
-### PASS/BLOCK reporting
+### Phase 3 — Automated Security Gate / DevSecOps CI — complete
 
-The final workflow reports the same structure for both outcomes:
+A single `SecurePR Security Gate` job was implemented with Python runtime policy, dependency installation, security tests, Gitleaks, Semgrep, pip-audit, CodeQL, PASS/BLOCK reporting, protected `main`, and controlled vulnerable/corrected demonstrations.
+
+### Phase 4 — Reusable Multi-Language MVP — in progress
+
+Phase 4 expands SecurePR from a working Python-focused gate into a reusable MVP for the user's own repositories. The phase includes repository/language profiling, broad CodeQL-supported language coverage, OWASP Top 10:2025 mapping, additional security policies, missing-control indicators, normalized findings, reusable workflow integration, portability testing, and final accuracy measurement.
+
+The complete Phase 4 plan is in [`docs/phase-4-mvp.md`](docs/phase-4-mvp.md).
+
+## Security Coverage
+
+SecurePR uses OWASP Top 10:2025 as one coverage framework and also addresses common secure-coding and DevSecOps concerns such as secrets, injection, authentication, authorization, cryptography, dependency/supply-chain risk, configuration, CI/CD security, unsafe deserialization, path traversal, SSRF, XSS, sensitive logging, error leakage, and exceptional-condition handling where applicable.
+
+The project does **not** claim that every OWASP category can be completely automated. SecurePR must report coverage boundaries instead of silently treating unsupported or context-dependent areas as secure.
+
+## PASS/BLOCK reporting
+
+The gate reports:
 
 1. Overall SecurePR result
-2. Check Results table
+2. Check Results
 3. **Fixes to make this PASS**
 4. Remediation
 5. Accuracy boundary
 6. Full Actions run link
 
-For a BLOCK, the fixes section explains why each failed control matters, what the developer should change, and the expected result after remediation. For a PASS, it states that there are no blocking fixes and that human review remains required.
+There are only two gate outcomes: `PASS` and `BLOCK`. Every outcome states that human review is always recommended.
 
-SecurePR does not automatically edit source code, rotate credentials, or merge a pull request. The developer reviews the finding, applies the fix, pushes the change, and lets the gate run again.
+A blocking result explains why the control failed, why it matters, what the developer should fix, and the expected result after remediation. SecurePR never automatically edits source code, rotates credentials, or merges a pull request.
 
-### Runtime policy
+## Accuracy
 
-`.python-version` declares Python 3.12 for the project. SecurePR requires Python 3.11 or newer. The runtime policy is intentionally separate from `pip-audit`: the runtime control checks the Python interpreter policy, while pip-audit checks known vulnerabilities in Python packages.
+SecurePR does not claim 100% accuracy. Phase 4 includes a controlled benchmark of vulnerable and safe cases that will be executed at the **end of the phase**, after implementation and documentation stabilize.
 
-### Accuracy and false-positive / false-negative handling
+The benchmark records:
 
-SecurePR does not claim perfect detection accuracy. Security scanners can produce false positives, while static analysis can miss vulnerabilities that depend on runtime behavior, business logic, configuration, or code paths outside a tool's coverage.
+- **TP:** vulnerable case correctly blocked
+- **FP:** safe case incorrectly blocked
+- **TN:** safe case correctly passed
+- **FN:** vulnerable case incorrectly passed
 
-The design uses layered controls rather than relying on one scanner:
+Precision: `TP / (TP + FP)`
 
-- Gitleaks checks committed secret patterns.
-- Semgrep and CodeQL provide complementary static analysis.
-- pip-audit checks known dependency vulnerabilities.
-- Pytest verifies security behavior that static analysis cannot prove reliably.
-- The Python runtime policy rejects unsupported runtimes and provides upgrade guidance.
-- Threat modeling and human review cover design and business-logic issues that automation cannot reliably determine.
-- Controlled vulnerable and corrected demonstrations verify that the gate can block and pass the expected cases.
+Recall: `TP / (TP + FN)`
 
-A PASS means the configured controls passed; it does not prove that the application is vulnerability-free. A BLOCK means review is required; it does not by itself prove that a scanner finding is exploitable.
+F1: `2 × (Precision × Recall) / (Precision + Recall)`
+
+The final report will present the measured results and their tested security categories. These measurements describe the benchmark corpus; they are not a universal guarantee of detection accuracy.
+
+## Reuse for the MVP
+
+SecurePR is intended to be reusable across the user's own repositories through a reusable GitHub Actions workflow. It is **not** being packaged for GitHub Marketplace during the MVP.
+
+The intended portability targets are:
+
+- SecurePR — Python
+- CookieGuard — JavaScript/TypeScript/Node/Next.js
+- NetDefender — the languages and security artifacts actually implemented there
+
+The reusable workflow profiles the calling repository and applies the controls that are applicable to it.
 
 ## Local Setup and Verification
-
-Both platform-specific setup scripts create and use `.venv` for project dependencies.
 
 ### Linux or macOS (Bash)
 
@@ -105,110 +121,45 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 .\scripts\verify.ps1
 ```
 
-## Test Organization
-
-```text
-tests/
-├── __init__.py
-├── unit/
-│   └── test_app_endpoints.py
-└── security/
-    ├── test_authentication.py
-    ├── test_input_validation.py
-    └── test_python_runtime.py
-```
-
-The suite covers endpoint behavior, authentication success/failure, password hashing, invalid input, input-size boundaries, and the Python runtime policy.
-
-## Security Controls
-
-| Area | Control | Status |
-|---|---|---|
-| Runtime | Python runtime policy | Implemented and tested |
-| SAST | CodeQL | Implemented and tested in CI |
-| Additional SAST | Semgrep | Implemented and tested in CI |
-| Secrets | Gitleaks | Synthetic-secret BLOCK demonstrated |
-| Python dependencies | pip-audit | Implemented and tested in CI; baseline vulnerability remediation completed |
-| Security behavior | pytest | Organized unit/security suite implemented |
-| Security Gate | Single-job PASS/BLOCK result | Implemented with detailed remediation guidance |
-| Workflow security | Workflow permissions and review | Implemented |
-| CI orchestration | GitHub Actions | Implemented |
-| Application | Python / Flask | Implemented |
-
 ## Project Structure
 
 ```text
 SecurePR/
 ├── app/
-│   ├── __init__.py
-│   └── app.py
 ├── security/
-│   ├── __init__.py
-│   └── python_runtime.py
 ├── tests/
-│   ├── __init__.py
-│   ├── unit/
-│   │   └── test_app_endpoints.py
-│   └── security/
-│       ├── test_authentication.py
-│       ├── test_input_validation.py
-│       └── test_python_runtime.py
 ├── scripts/
-│   ├── __init__.py
-│   ├── setup.sh
-│   ├── setup.ps1
-│   ├── verify.sh
-│   ├── verify.ps1
-│   └── check_python_version.py
+│   ├── repository_profile.py
+│   ├── summarize_sarif.py
+│   ├── accuracy_metrics.py
+│   ├── check_python_version.py
+│   └── setup/verification scripts
 ├── docs/
 │   ├── architecture.md
 │   ├── security-requirements.md
-│   ├── threat-model.md
 │   ├── security-checks.md
-│   └── testing.md
-├── .github/
-│   └── workflows/
-│       └── security.yml
+│   ├── threat-model.md
+│   ├── testing.md
+│   └── phase-4-mvp.md
+├── .github/workflows/
+│   ├── security.yml
+│   └── reusable-security.yml
+├── .semgrep_securepr.yml
 ├── .python-version
-├── requirements.txt
-├── README.md
-└── .gitignore
+└── requirements.txt
 ```
 
-## Security Concepts
+## Out of Scope for the MVP
 
-- Secure SDLC
-- Security requirements
-- STRIDE threat modeling
-- Secure coding
-- Static Application Security Testing (SAST)
-- Secret management
-- Dependency and software-supply-chain security
-- Security testing
-- CI/CD security
-- DevSecOps and shift-left security
-
-## Out of Scope
-
-- Enterprise-scale security platforms
-- Large numbers of scanner integrations
-- Full vulnerability-management systems
-- Support for every programming language
-- Production deployment
-- Advanced ML-based vulnerability detection
-- Generic security scoring
-- Automatic source-code modification or automatic pull-request merging
-
-## Future Enhancements
-
-- DAST with OWASP ZAP
-- Fuzz testing
-- Container image scanning
-- SBOM generation and analysis
-- More project-specific security rules
-- Detailed pull-request security reporting
-- Explicit, user-triggered remediation proposals that never merge automatically
+- GitHub Marketplace publication
+- Public SaaS hosting
+- Automatic remediation
+- Automatic merging
+- Enterprise vulnerability-management features
+- Guaranteed detection of every vulnerability
+- Support for every programming language ever created
+- Generic security scoring that hides individual findings
 
 ## Status
 
-**Phase 3 — complete.** The single-job security gate, layered security controls, organized security tests, Python runtime policy, detailed PASS/BLOCK reporting, no-auto-remediation policy, and protected `main` ruleset are implemented and validated. The controlled vulnerable and corrected demonstrations passed their intended BLOCK/PASS outcomes, and the post-merge `main` workflow was verified successfully.
+**Phase 4 — in progress.** The implementation is being expanded into the reusable multi-language MVP. Final accuracy benchmarking, cross-repository demonstrations, consolidated PR validation, merge verification, and final documentation sign-off occur at the end of the phase.

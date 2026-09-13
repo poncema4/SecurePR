@@ -2,7 +2,7 @@
 
 ## 1. Scope
 
-The threat model covers the sample application, pull-request workflow, GitHub Actions automation, project dependencies, security tools, and the final security-gate decision.
+The threat model covers the sample application, pull-request workflow, GitHub Actions automation, project dependencies, security tools, reusable workflow, repository profiling, finding aggregation, and final security-gate decision.
 
 No real credentials are required or intended to be project assets.
 
@@ -10,13 +10,14 @@ No real credentials are required or intended to be project assets.
 
 - Application source code
 - Application security behavior
-- Dependency definitions and lock information, where used
+- Dependency definitions and lock information
 - GitHub Actions workflow configuration
 - CI permissions and tokens
 - Security-tool results
 - Security-gate decision
 - CI logs and evidence artifacts
 - Synthetic demonstration data
+- Repository/language applicability information
 
 ## 3. Trust Boundaries
 
@@ -35,6 +36,10 @@ Security-tool results become inputs to the final PASS/BLOCK decision. Exit codes
 ### TB-04 — Workflow to GitHub Resources
 
 Actions may have access to repository metadata, pull requests, code-scanning results, or tokens. Permissions should follow least privilege.
+
+### TB-05 — Reusable Workflow to Calling Repository
+
+The reusable workflow executes against the caller repository while obtaining SecurePR tooling from the SecurePR repository. The workflow must clearly distinguish target-repository files from SecurePR tooling files.
 
 ## 4. STRIDE Analysis
 
@@ -57,31 +62,28 @@ Actions may have access to repository metadata, pull requests, code-scanning res
 | T-04 | Path traversal introduced | SAST and security tests |
 | T-05 | Authentication or authorization failure | Security tests, SAST, and human review |
 | T-06 | Weak or unsafe cryptographic use | SAST and review |
-| T-07 | Vulnerable dependency introduced | pip-audit and dependency review |
+| T-07 | Vulnerable dependency introduced | Applicable dependency audits |
 | T-08 | GitHub Actions workflow abused | Least-privilege permissions, workflow review, and targeted checks |
 | T-09 | Sensitive information exposed through logs or errors | SAST and security tests |
 | T-10 | Supply-chain risk in automation or dependencies | Dependency controls, action review, and least privilege |
+| T-11 | Unsupported language silently treated as secure | Repository profiler and explicit coverage boundary |
+| T-12 | Duplicate scanner findings overwhelm the developer | Conservative SARIF normalization |
+| T-13 | Reusable workflow analyzes the wrong repository | Explicit target checkout and tooling checkout separation |
+| T-14 | Scanner false positive or false negative | Controlled final benchmark and human review |
+| T-15 | PR passes but resulting main state differs | Independent post-merge main workflow |
 
 ## 6. Phase 3 Assessment
 
-The Phase 3 security-gate behavior was demonstrated with actual pull requests and then independently verified on the resulting `main` state.
+Phase 3 security-gate behavior was demonstrated with actual pull requests and then independently verified on the resulting `main` state. The controlled synthetic secret was detected and blocked, while the corrected demonstration passed.
 
-### T-01 — Secret committed
+## 7. Phase 4 Assessment Boundary
 
-A controlled synthetic AWS-style access key was introduced on a separate vulnerable demonstration branch. Gitleaks detected the value under `aws-access-token`, the Secret Detection step failed, and the overall SecurePR gate returned `BLOCK`. No real credential was used.
+Phase 4 expands the model to repository portability and multi-language analysis. The project will not claim that unsupported languages, design-level issues, or business-logic weaknesses are automatically proven safe.
 
-A separate corrected demonstration branch used an environment variable instead of committing a credential. The configured controls passed and the SecurePR gate returned `PASS`.
+Final Phase 4 validation must measure false positives and false negatives using TP, FP, TN, FN, precision, recall, and F1 on a defined benchmark corpus.
 
-### Gate integrity
-
-The final workflow uses one `SecurePR Security Gate` job. Its security controls are separate steps within that job, and the final result step evaluates their outcomes. A failure of any configured blocking step produces `BLOCK`; successful completion of all configured controls produces `PASS`.
-
-CodeQL also uploads its analysis results to GitHub Code Scanning. This is an additional reporting surface, not a second SecurePR job or required SecurePR status check.
-
-The remaining threats in this model have not all been individually demonstrated. Their controls remain subject to future targeted tests, scanner findings, threat-model review, or human review as appropriate.
-
-## 7. Risk Treatment
+## 8. Risk Treatment
 
 SecurePR prioritizes threats that can be checked repeatedly in CI. Intentionally vulnerable demonstrations use synthetic data and controlled code changes only. The project does not target production systems or real credentials.
 
-Context-dependent issues, especially business logic and some authorization/design decisions, remain subject to human review and threat modeling.
+Context-dependent issues, especially business logic and some authorization/design decisions, remain subject to human review and threat modeling. Human review is always recommended even after a PASS.
