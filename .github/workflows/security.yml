@@ -29,10 +29,15 @@ jobs:
           fetch-depth: 0
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
+
+      - name: Python runtime policy
+        id: python-runtime
+        continue-on-error: true
+        run: python scripts/check_python_version.py
 
       - name: Install project dependencies
         id: install
@@ -44,7 +49,7 @@ jobs:
         continue-on-error: true
         run: |
           python -m pytest -q
-          python -m compileall -q app tests
+          python -m compileall -q app security tests
 
       - name: Secret detection
         id: gitleaks
@@ -85,6 +90,7 @@ jobs:
         id: result
         if: always()
         env:
+          PYTHON_RUNTIME_RESULT: ${{ steps.python-runtime.outcome }}
           INSTALL_RESULT: ${{ steps.install.outcome }}
           TEST_RESULT: ${{ steps.security-tests.outcome }}
           GITLEAKS_RESULT: ${{ steps.gitleaks.outcome }}
@@ -103,7 +109,8 @@ jobs:
           }
 
           overall="PASS"
-          if [[ "$INSTALL_RESULT" != "success" ||
+          if [[ "$PYTHON_RUNTIME_RESULT" != "success" ||
+                "$INSTALL_RESULT" != "success" ||
                 "$TEST_RESULT" != "success" ||
                 "$GITLEAKS_RESULT" != "success" ||
                 "$SEMGREP_RESULT" != "success" ||
@@ -124,6 +131,7 @@ jobs:
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "| Check | Result | What it checks |" >> "$GITHUB_STEP_SUMMARY"
           echo "|---|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Python runtime policy | $(result "$PYTHON_RUNTIME_RESULT") | Rejects unsupported Python runtimes and provides upgrade guidance |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Dependency install | $(result "$INSTALL_RESULT") | Project dependencies can be installed |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Security tests | $(result "$TEST_RESULT") | Expected security behavior and Python compilation |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Secret detection | $(result "$GITLEAKS_RESULT") | Committed API keys, tokens, passwords, and other secret patterns |" >> "$GITHUB_STEP_SUMMARY"
