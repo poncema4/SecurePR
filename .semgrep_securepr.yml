@@ -25,3 +25,29 @@ rules:
         - docs/**
         - .venv/**
         - node_modules/**
+  - id: securepr-unsafe-eval
+    languages: [generic]
+    message: Dynamic code evaluation detected; avoid eval-like execution of untrusted input.
+    severity: ERROR
+    patterns:
+      - pattern-regex: |
+          \b(eval|exec)\s*\(
+    paths:
+      exclude:
+        - tests/**
+        - docs/**
+        - .venv/**
+        - node_modules/**
+  - id: securepr-unverified-tls-python
+    languages: [generic]
+    message: TLS certificate verification is explicitly disabled; verify certificates unless a narrowly justified test-only exception applies.
+    severity: ERROR
+    patterns:
+      - pattern-regex: |
+          (?i)\bverify\s*=\s*False\b
+    paths:
+      exclude:
+        - tests/**
+        - docs/**
+        - .venv/**
+        - node_modules/**

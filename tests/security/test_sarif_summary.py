@@ -50,14 +50,16 @@ def test_same_location_from_multiple_tools_has_one_normalized_key():
     assert finding_key(codeql) == finding_key(semgrep)
 
 
-def test_securepr_custom_credential_rules_match_high_confidence_cases():
+def test_securepr_custom_security_rules_match_high_confidence_cases():
     import re
     import yaml
 
     rules = yaml.safe_load(Path('.semgrep_securepr.yml').read_text(encoding='utf-8'))['rules']
-    password_pattern = rules[0]['patterns'][0]['pattern-regex'].strip()
-    username_pattern = rules[1]['patterns'][0]['pattern-regex'].strip()
-    assert re.search(password_pattern, 'PASSWORD = "SuperSecret123!"')
-    assert re.search(username_pattern, 'username = "admin"')
-    assert not re.search(password_pattern, 'password = get_password_from_secret_manager()')
-    assert not re.search(username_pattern, 'username = current_user.name')
+    patterns = [rule['patterns'][0]['pattern-regex'].strip() for rule in rules]
+    assert re.search(patterns[0], 'PASSWORD = "SuperSecret123!"')
+    assert re.search(patterns[1], 'username = "admin"')
+    assert re.search(patterns[2], 'eval(user_input)')
+    assert re.search(patterns[3], 'requests.get(url, verify=False)')
+    assert not re.search(patterns[0], 'password = get_password_from_secret_manager()')
+    assert not re.search(patterns[1], 'username = current_user.name')
+    assert not re.search(patterns[3], 'requests.get(url, verify=True)')
