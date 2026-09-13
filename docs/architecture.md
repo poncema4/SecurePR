@@ -12,16 +12,18 @@ Developer
 Pull Request
    ↓
 GitHub Actions
-   ├── Source-code analysis
-   ├── Secret detection
-   ├── Dependency analysis
-   ├── Security tests
-   └── Workflow/configuration checks
+   ├── Security Tests
+   ├── Secret Detection (Gitleaks)
+   ├── Semgrep SAST
+   ├── Dependency Audit (pip-audit)
+   └── CodeQL SAST
    ↓
-Security Gate
+Required Checks
    ↓
 PASS / BLOCK
 ```
+
+The clean Phase 2 baseline currently executes five required security jobs. A failed required job causes the workflow/check suite to fail; the next demonstration stage will validate this behavior with an intentionally vulnerable pull request.
 
 ## 3. Control Flow
 
@@ -45,33 +47,41 @@ Each security concern is mapped to a requirement and one or more controls. The w
 
 ### Sample Application
 
-A deliberately small Python application will provide realistic source code and security behavior for the checks. It will contain enough functionality to demonstrate selected injection, authentication/authorization, input-validation, error-handling, and dependency scenarios without becoming a large application.
+The Phase 2 application is a deliberately small Flask service. It provides authentication, user-profile lookup, and input-validation behavior that can be exercised by tests and analyzed by security tooling.
 
 ### Security Test Suite
 
-Pytest will exercise security properties that static analysis cannot reliably prove, including behavior and regression cases.
+Pytest exercises application behavior and security properties that static analysis cannot reliably prove. The suite is run in GitHub Actions and can also be run locally through the platform-specific verification scripts.
 
 ### Static Analysis
 
-CodeQL and Semgrep will provide complementary source-code analysis. Rules will be selected for the actual Python application rather than enabling an unnecessarily broad collection of checks.
+CodeQL and Semgrep provide complementary source-code analysis. CodeQL performs semantic analysis, while Semgrep provides focused rule-based analysis.
 
 ### Secret Detection
 
-Gitleaks will scan the repository for credential-like material. Demonstration secrets will always be synthetic.
+Gitleaks scans repository history for credential-like material. Demonstration secrets will always be synthetic.
 
 ### Dependency Analysis
 
-pip-audit will check Python dependencies against known vulnerability information. GitHub Dependency Review may be used for pull-request dependency changes where supported by the repository configuration.
+pip-audit checks the Python dependency requirements against known vulnerability information. The Phase 2 baseline dependency requirement was adjusted after CI identified a vulnerability in the earlier pytest 8.4.2 resolution; the current requirement is `pytest>=9.0.3,<10`.
 
 ### GitHub Actions
 
-GitHub Actions will orchestrate the controls. Workflow permissions and handling of untrusted pull-request data are themselves treated as security concerns.
+GitHub Actions orchestrates the controls. The workflow uses repository-read permissions plus the permissions required by CodeQL to publish security-analysis results. Workflow permissions and handling of untrusted pull-request data are themselves treated as security concerns.
 
-## 5. Gate Model
+## 5. Current Phase 2 Gate Behavior
 
-The final workflow will have an explicit gate stage. Required blocking controls must succeed for a `PASS`. A defined blocking finding or failed required security test results in `BLOCK`.
+The current baseline consists of five required workflow jobs:
 
-The precise implementation of the gate will be finalized after the first workflow is built so that it reflects actual tool exit codes and supported behavior.
+1. Security Tests
+2. Secret Detection
+3. Semgrep SAST
+4. Dependency Audit
+5. CodeQL
+
+For the clean baseline, all five jobs completed successfully. The next implementation step is to exercise failure behavior with controlled vulnerable pull requests and document exactly which required check detects each vulnerability.
+
+The project will not claim a specific scanner-to-gate behavior until it has been demonstrated with an actual pull request.
 
 ## 6. Reusability
 
@@ -82,7 +92,7 @@ Security checks and gate logic should remain sufficiently separated from the sam
 1. Developer-controlled pull-request changes entering the CI environment.
 2. Pull-request source code interacting with GitHub Actions.
 3. External dependency metadata and package installation.
-4. Third-party GitHub Actions used by the workflow.
-5. Security-tool output becoming a gate decision.
+4. Third-party GitHub Actions and security tools used by the workflow.
+5. Security-tool output becoming a required-check result.
 
 The workflow must avoid treating untrusted pull-request content as trusted workflow configuration or shell input.
