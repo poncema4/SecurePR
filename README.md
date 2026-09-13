@@ -10,7 +10,7 @@ SecurePR is not intended to claim complete vulnerability detection. Different se
 
 Security issues can enter software through source-code changes, exposed credentials, vulnerable dependencies, insecure configuration, weak cryptography, unsafe CI/CD workflows, and application behavior that static analysis cannot fully understand. SecurePR focuses on detecting a practical set of these issues early in the pull-request process.
 
-## Phase 1 Design
+## Architecture
 
 ```text
 Developer
@@ -29,7 +29,24 @@ Security Gate
 PASS / BLOCK
 ```
 
-The project is designed so that the sample application can be evaluated by the security gate while the checks remain separated enough to be reused with another compatible repository later.
+The sample application is intentionally small so the project can focus on demonstrating security controls rather than building a large product. The checks remain separated enough to be reused with another compatible repository later.
+
+## Phase 2 Baseline
+
+The initial implementation now contains:
+
+- A small Flask sample application
+- Password-hash-based authentication logic
+- Login, user-profile, and input-validation endpoints
+- Pytest security and behavior tests
+- A local verification script
+- GitHub Actions orchestration for the baseline security gate
+- CodeQL SAST
+- Semgrep SAST
+- Gitleaks secret detection
+- pip-audit dependency auditing
+
+This baseline is intentionally clean. Vulnerable changes will be introduced later through test pull requests so the gate can be evaluated without permanently placing intentionally vulnerable code on `main`.
 
 ## Security Coverage
 
@@ -54,7 +71,7 @@ The planned coverage includes:
 
 The project will only claim coverage that is demonstrated by the implemented controls and tests.
 
-## Planned Security Controls
+## Security Controls
 
 | Area | Control |
 |---|---|
@@ -66,7 +83,7 @@ The project will only claim coverage that is demonstrated by the implemented con
 | Security behavior | pytest |
 | Workflow security | Dedicated workflow checks and review |
 | CI orchestration | GitHub Actions |
-| Application | Python |
+| Application | Python / Flask |
 | Optional container support | Docker |
 
 ## Expected Demonstration
@@ -80,16 +97,13 @@ Demonstration credentials and secrets will be synthetic and non-sensitive.
 ```text
 SecurePR/
 ├── app/
-│   └── sample application
-├── security/
-│   ├── configuration
-│   └── security-related logic
+│   ├── __init__.py
+│   └── app.py
 ├── tests/
-│   ├── unit/
-│   ├── security/
-│   └── integration/
+│   ├── __init__.py
+│   └── test_app.py
 ├── scripts/
-│   └── local verification
+│   └── verify.sh
 ├── docs/
 │   ├── architecture.md
 │   ├── security-requirements.md
@@ -100,8 +114,7 @@ SecurePR/
 │   └── verified results
 ├── .github/
 │   └── workflows/
-├── docker/
-│   └── optional container files
+│       └── security.yml
 ├── requirements.txt
 ├── README.md
 └── .gitignore
@@ -141,4 +154,4 @@ SecurePR/
 
 ## Status
 
-**Phase 1 — design and documentation.** Requirements, architecture, security coverage, threat model, and testing strategy are established. Implementation begins in Phase 2 with the sample application and first working security gate.
+**Phase 2 — baseline implementation.** The sample application, baseline tests, and first automated security checks are now in the repository. The next work is to execute and validate the baseline, fix any real failures, and then build the vulnerable-PR/BLOCK and corrected-PR/PASS demonstrations.
