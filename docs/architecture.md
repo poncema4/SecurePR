@@ -12,18 +12,22 @@ Developer
 Pull Request
    ↓
 GitHub Actions
-   ├── Security Tests
+   ↓
+One SecurePR Security Gate Job
+   ├── Python runtime policy
+   ├── Security tests
    ├── Secret Detection (Gitleaks)
    ├── Semgrep SAST
    ├── Dependency Audit (pip-audit)
-   └── CodeQL SAST
-   ↓
-Security Gate
+   ├── CodeQL initialization
+   └── CodeQL analysis
    ↓
 PASS / BLOCK
+   ↓
+Human review before merge
 ```
 
-Phase 3 adds an explicit Security Gate job. The gate runs after the five required security jobs and evaluates their GitHub Actions results. It uses an `always()` condition so a failed upstream security job still produces a visible gate decision.
+Phase 3 uses one GitHub Actions job named `SecurePR Security Gate`. The individual controls run as separate steps inside that job. This gives the pull request one authoritative SecurePR status while preserving step-level logs for diagnosis. The final step evaluates the configured control outcomes and publishes the PASS/BLOCK summary.
 
 ## 3. Control Flow
 
@@ -38,7 +42,7 @@ Automated Check
   ↓
 Finding / Test Result
   ↓
-Security Gate
+SecurePR Security Gate
   ↓
 PASS / BLOCK
 ```
@@ -57,35 +61,29 @@ Pytest exercises application behavior and security properties that static analys
 
 ### Static Analysis
 
-CodeQL and Semgrep provide complementary source-code analysis. CodeQL performs semantic analysis, while Semgrep provides focused rule-based analysis.
+CodeQL and Semgrep provide complementary source-code analysis. CodeQL performs semantic analysis and uploads its results to GitHub Code Scanning, while Semgrep provides focused rule-based analysis. A successful CodeQL analysis means the configured analysis completed; it is not a claim that no CodeQL finding exists.
 
 ### Secret Detection
 
-Gitleaks scans repository changes for credential-like material. The Phase 3 demonstration verified this path with a synthetic AWS-style access key. Gitleaks identified the finding under `aws-access-token`, causing its job to fail.
+Gitleaks scans repository changes for credential-like material. The Phase 3 demonstration verified this path with a synthetic AWS-style access key. Gitleaks identified the finding under `aws-access-token`, causing the Secret Detection step to fail and the overall gate to BLOCK.
 
 ### Dependency Analysis
 
-pip-audit checks the Python dependency requirements against known vulnerability information. The Phase 2 baseline dependency requirement was adjusted after CI identified a vulnerability in the earlier pytest 8.4.2 resolution; the current requirement is `pytest>=9.0.3,<10`.
+pip-audit checks the Python dependency requirements against known vulnerability information. The dependency baseline was adjusted after CI identified a vulnerability in the earlier pytest 8.4.2 resolution; the current requirement is `pytest>=9.0.3,<10`. The Phase 3 secret demonstrations did not change dependencies, so pip-audit passed those runs.
 
-### Security Gate
+### SecurePR Security Gate
 
-The Security Gate depends on the five required jobs:
+The authoritative gate is the single `SecurePR Security Gate` job. Its configured blocking controls are the runtime policy, dependency installation, security tests, Gitleaks, Semgrep, pip-audit, and successful CodeQL initialization and analysis. If any configured control step does not succeed, the final step publishes `BLOCK` and exits unsuccessfully. If all configured controls succeed, it publishes `PASS`.
 
-1. Security Tests
-2. Secret Detection
-3. Semgrep SAST
-4. Dependency Audit
-5. CodeQL
-
-If all five jobs succeed, the gate prints a `PASS` decision. If any required job is not successful, the gate prints a `BLOCK` decision and fails the gate job.
+GitHub Code Scanning may display CodeQL results separately in the repository interface. That reporting surface is not a second SecurePR job or a second required SecurePR status check.
 
 ## 5. Phase 3 Demonstration Results
 
-The intentional vulnerable demonstration used a separate pull request and a fake AWS-style credential. Gitleaks failed, while the other required controls completed successfully. The Security Gate then failed because Secret Detection was unsuccessful.
+The intentional vulnerable demonstration used a separate pull request and a fake AWS-style credential. Gitleaks failed, while the other configured controls completed successfully. The overall SecurePR result was BLOCK because Secret Detection failed.
 
-The corrected demonstration started from clean `main` and used an environment variable instead of a committed credential. All five required jobs passed, and the Security Gate passed.
+The corrected demonstration started from a clean `main` baseline and used an environment variable instead of a committed credential. The configured controls passed and the overall SecurePR result was PASS.
 
-The demonstration pull requests were not merged, so the clean `main` branch remained unchanged by the vulnerable or corrected example files.
+The demonstration pull requests were not merged, so the vulnerable or corrected example files did not alter `main`.
 
 ## 6. Reusability
 
@@ -97,6 +95,4 @@ Security checks and gate logic remain sufficiently separated from the sample app
 2. Pull-request source code interacting with GitHub Actions.
 3. External dependency metadata and package installation.
 4. Third-party GitHub Actions and security tools used by the workflow.
-5. Security-tool output becoming a required-check result.
-
-The workflow must avoid treating untrusted pull-request content as trusted workflow configuration or shell input.
+5. Security-tool output becoming inputs to the final PASS/BLOCK result.

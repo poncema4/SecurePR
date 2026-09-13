@@ -27,19 +27,19 @@ SecurePR shall:
 
 The gate shall scan the repository and pull-request changes for exposed secrets, including API keys, cloud credentials, tokens, passwords, private keys, connection strings, and other credential-like material that the selected scanner can detect.
 
-**Phase 3 verification:** A synthetic AWS-style access key was detected by Gitleaks under its `aws-access-token` rule, causing the Secret Detection job to fail.
+**Phase 3 verification:** A synthetic AWS-style access key was detected by Gitleaks under its `aws-access-token` rule, causing the Secret Detection step to fail and the overall gate to BLOCK.
 
 ### SR-02 — Source-Code Security Analysis
 
 The gate shall analyze Python source code for selected security-relevant weaknesses, including injection, unsafe command execution, path traversal, unsafe deserialization, insecure data flow, and other applicable findings supported by the selected SAST rules.
 
-**Phase 3 verification:** Semgrep and CodeQL both passed the controlled secret demonstration and the corrected demonstration. This phase did not claim a new SAST vulnerability class was demonstrated.
+**Phase 3 verification:** Semgrep and CodeQL completed successfully in the controlled secret and corrected demonstrations. This phase did not claim that a new SAST vulnerability class was specifically demonstrated.
 
 ### SR-03 — Dependency Security
 
 The gate shall check Python dependencies for known vulnerabilities. Dependency changes introduced by a pull request should also be reviewable through dependency-diff controls where GitHub provides the required support.
 
-**Phase 3 verification:** pip-audit passed the vulnerable-secret and corrected demonstration runs because neither intentionally changed the dependency set.
+**Phase 3 verification:** pip-audit passed the vulnerable-secret and corrected demonstration runs because neither demonstration changed the dependency set. The project dependency baseline was also updated after the earlier pytest 8.4.2 vulnerability was identified.
 
 ### SR-04 — Security Tests
 
@@ -73,17 +73,22 @@ If Docker remains part of the implemented application, container configuration s
 
 ## 4. Gate Requirements
 
-A pull request shall be considered `BLOCK` when a defined blocking control fails. A pull request shall be considered `PASS` only when all required blocking controls complete successfully and no blocking finding remains.
+A pull request shall be considered `BLOCK` when a defined blocking control fails. A pull request shall be considered `PASS` only when all configured blocking controls complete successfully and no blocking result remains.
 
-The Phase 3 workflow has an explicit Security Gate job that evaluates these five required checks:
+Phase 3 implements one authoritative `SecurePR Security Gate` job. The job contains these configured control steps:
 
-1. Security Tests
-2. Secret Detection
-3. Semgrep SAST
-4. Dependency Audit
-5. CodeQL
+1. Python runtime policy
+2. Dependency installation
+3. Security tests and Python compilation
+4. Secret Detection with Gitleaks
+5. Semgrep SAST
+6. Dependency Audit with pip-audit
+7. CodeQL initialization
+8. CodeQL analysis
 
-The controlled vulnerable-secret demonstration produced a failed Secret Detection job and a failed Security Gate. The corrected demonstration produced successful results for all five required checks and a successful Security Gate.
+The final workflow step evaluates these outcomes and publishes the single PASS/BLOCK result. CodeQL also uploads analysis results to GitHub Code Scanning; that reporting surface is not a second SecurePR job or required SecurePR check.
+
+The controlled vulnerable-secret demonstration produced a failed Secret Detection result and an overall BLOCK. The corrected demonstration produced successful configured controls and an overall PASS.
 
 ## 5. Human Review Boundary
 

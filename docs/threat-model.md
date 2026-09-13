@@ -30,11 +30,11 @@ The workflow invokes scanners, dependency services, package managers, and third-
 
 ### TB-03 — Tool Output to Gate
 
-Security-tool findings become inputs to the PASS/BLOCK decision. Exit codes and output must be interpreted consistently.
+Security-tool results become inputs to the final PASS/BLOCK decision. Exit codes and step outcomes must be interpreted consistently.
 
 ### TB-04 — Workflow to GitHub Resources
 
-Actions may have access to repository metadata, pull requests, artifacts, or tokens. Permissions should follow least privilege.
+Actions may have access to repository metadata, pull requests, code-scanning results, or tokens. Permissions should follow least privilege.
 
 ## 4. STRIDE Analysis
 
@@ -64,17 +64,19 @@ Actions may have access to repository metadata, pull requests, artifacts, or tok
 
 ## 6. Phase 3 Assessment
 
-The Phase 3 security-gate behavior has now been demonstrated with actual pull requests.
+The Phase 3 security-gate behavior was demonstrated with actual pull requests and then independently verified on the resulting `main` state.
 
 ### T-01 — Secret committed
 
-A controlled synthetic AWS-style access key was introduced on a separate vulnerable demonstration branch. Gitleaks detected the value under `aws-access-token`, the Secret Detection job failed, and the Security Gate failed. No real credential was used.
+A controlled synthetic AWS-style access key was introduced on a separate vulnerable demonstration branch. Gitleaks detected the value under `aws-access-token`, the Secret Detection step failed, and the overall SecurePR gate returned `BLOCK`. No real credential was used.
 
-A separate corrected demonstration branch used an environment variable instead of committing a credential. Secret Detection passed and the Security Gate passed after all five required checks succeeded.
+A separate corrected demonstration branch used an environment variable instead of committing a credential. The configured controls passed and the SecurePR gate returned `PASS`.
 
 ### Gate integrity
 
-The explicit Security Gate correctly propagated the failed Secret Detection result into a `BLOCK` decision. In the corrected demonstration, all required results were successful and the gate returned `PASS`.
+The final workflow uses one `SecurePR Security Gate` job. Its security controls are separate steps within that job, and the final result step evaluates their outcomes. A failure of any configured blocking step produces `BLOCK`; successful completion of all configured controls produces `PASS`.
+
+CodeQL also uploads its analysis results to GitHub Code Scanning. This is an additional reporting surface, not a second SecurePR job or required SecurePR status check.
 
 The remaining threats in this model have not all been individually demonstrated. Their controls remain subject to future targeted tests, scanner findings, threat-model review, or human review as appropriate.
 

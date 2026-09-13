@@ -34,26 +34,28 @@ Verify that GitHub Actions starts on the intended events, executes required cont
 
 ## 3. Phase 3 Baseline Result
 
-The earlier clean baseline was verified in GitHub Actions. The five required controls passed, and the explicit Security Gate passed on the Phase 3 implementation pull request.
+The Phase 3 implementation was verified in GitHub Actions. The configured controls passed, and the single `SecurePR Security Gate` job passed on the clean implementation PR.
 
 | Control | Clean baseline / corrected result |
 |---|---|
+| Python runtime policy | PASS |
+| Dependency installation | PASS |
 | Security Tests | PASS |
 | Gitleaks Secret Detection | PASS |
 | Semgrep SAST | PASS |
 | pip-audit Dependency Audit | PASS |
-| CodeQL | PASS |
-| Security Gate | PASS |
+| CodeQL initialization and analysis | PASS |
+| SecurePR Security Gate | PASS |
 
 The local Windows PowerShell verification was also executed using `.venv` and produced `8 passed`.
 
-After the Phase 3 refinement, the workflow is being re-verified with one consolidated job before Phase 3 is declared complete.
+The post-merge `main` workflow was then independently verified and completed successfully, confirming that the resulting `main` branch remained healthy after the documentation update.
 
 ## 4. Phase 3 Vulnerable Demonstration
 
 A separate pull request intentionally committed a synthetic AWS-style access key to `demo/intentional-secret.py`.
 
-The actual earlier workflow result was:
+The actual workflow result was:
 
 | Control | Vulnerable demonstration |
 |---|---|
@@ -62,9 +64,9 @@ The actual earlier workflow result was:
 | Semgrep SAST | PASS |
 | pip-audit Dependency Audit | PASS |
 | CodeQL | PASS |
-| Security Gate | FAIL / BLOCK |
+| SecurePR Security Gate | FAIL / BLOCK |
 
-Gitleaks reported the finding under its `aws-access-token` rule. The value was fake and non-sensitive. The failed Secret Detection control caused the Security Gate to block as designed.
+Gitleaks reported the finding under its `aws-access-token` rule. The value was fake and non-sensitive. The failed Secret Detection control caused the SecurePR gate to block as designed.
 
 The vulnerable pull request was not merged.
 
@@ -72,7 +74,7 @@ The vulnerable pull request was not merged.
 
 A separate clean branch was created from `main` so the corrected demonstration did not retain the vulnerable secret in its commit history. The corrected example used an environment variable rather than committing a credential value.
 
-The actual earlier workflow result was:
+The actual workflow result was:
 
 | Control | Corrected demonstration |
 |---|---|
@@ -81,7 +83,7 @@ The actual earlier workflow result was:
 | Semgrep SAST | PASS |
 | pip-audit Dependency Audit | PASS |
 | CodeQL | PASS |
-| Security Gate | PASS |
+| SecurePR Security Gate | PASS |
 
 The corrected pull request was also not merged, preserving a clean `main` baseline.
 
@@ -144,11 +146,11 @@ Verified Phase 3 evidence includes:
 - Local `.venv` verification result
 - Gitleaks secret-detection failure
 - Gitleaks finding details for the synthetic AWS-style credential
-- `BLOCK` Security Gate result
+- `BLOCK` SecurePR result
 - Corrected pull-request workflow
-- `PASS` Security Gate result
+- `PASS` SecurePR result
 - Relevant GitHub Actions job results and logs
-- Post-refinement consolidated gate run
+- Post-merge `main` workflow verification
 
 Screenshots can be collected from these completed runs for the final report and presentation.
 
@@ -160,7 +162,7 @@ Phase 2 is complete when the sample application, tests, local setup, and baselin
 
 Phase 3 is complete when:
 
-- One consolidated Security Gate job runs the required controls.
+- One consolidated SecurePR Security Gate job runs the configured controls.
 - The pull request receives one clear PASS/BLOCK result.
 - A failed control is still visible with enough step-level detail to diagnose it.
 - An intentionally vulnerable pull request is actually detected and blocked.
@@ -168,7 +170,7 @@ Phase 3 is complete when:
 - The workflow does not automatically modify or merge source code.
 - False-positive and false-negative limitations are documented honestly.
 - The clean `main` baseline remains intact.
-- Temporary demonstration branches are removed after testing.
-- The final post-refinement `main` workflow passes.
+- Temporary demonstration branches are removed after testing where repository permissions allow.
+- The final post-merge `main` workflow passes.
 
-The first nine conditions have been addressed; the final post-refinement workflow run is the remaining verification step before Phase 3 is declared complete.
+These Phase 3 criteria have been addressed by the implemented workflow and recorded validation results. Phase 3 is complete.
