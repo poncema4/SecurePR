@@ -102,3 +102,39 @@ jobs:
 
       - name: Perform CodeQL analysis
         uses: github/codeql-action/analyze@v3
+
+  gate:
+    name: Security Gate
+    if: ${{ always() }}
+    needs:
+      - tests
+      - gitleaks
+      - semgrep
+      - dependency-audit
+      - codeql
+    runs-on: ubuntu-latest
+    steps:
+      - name: Evaluate required security checks
+        env:
+          TESTS_RESULT: ${{ needs.tests.result }}
+          GITLEAKS_RESULT: ${{ needs.gitleaks.result }}
+          SEMGREP_RESULT: ${{ needs.semgrep.result }}
+          DEPENDENCY_RESULT: ${{ needs.dependency-audit.result }}
+          CODEQL_RESULT: ${{ needs.codeql.result }}
+        run: |
+          echo "Security Tests: ${TESTS_RESULT}"
+          echo "Secret Detection: ${GITLEAKS_RESULT}"
+          echo "Semgrep SAST: ${SEMGREP_RESULT}"
+          echo "Dependency Audit: ${DEPENDENCY_RESULT}"
+          echo "CodeQL: ${CODEQL_RESULT}"
+
+          if [[ "${TESTS_RESULT}" != "success" ||
+                "${GITLEAKS_RESULT}" != "success" ||
+                "${SEMGREP_RESULT}" != "success" ||
+                "${DEPENDENCY_RESULT}" != "success" ||
+                "${CODEQL_RESULT}" != "success" ]]; then
+            echo "Security Gate: BLOCK"
+            exit 1
+          fi
+
+          echo "Security Gate: PASS"
