@@ -6,135 +6,140 @@ on:
   pull_request:
     branches: [main]
 
+# One workflow job keeps the PR check surface simple. Individual security
+# checks still run as separate steps so their logs remain easy to inspect.
+concurrency:
+  group: securepr-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 permissions:
+  actions: read
   contents: read
   security-events: write
   pull-requests: read
 
 jobs:
-  tests:
-    name: Security Tests
+  security-gate:
+    name: SecurePR Security Gate
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.12"
           cache: pip
 
-      - name: Install dependencies
+      - name: Install project dependencies
+        id: install
+        continue-on-error: true
         run: python -m pip install -r requirements.txt
 
-      - name: Run tests
-        run: python -m pytest -q
+      - name: Security tests
+        id: security-tests
+        continue-on-error: true
+        run: |
+          python -m pytest -q
+          python -m compileall -q app tests
 
-      - name: Compile Python source
-        run: python -m compileall -q app tests
-
-  gitleaks:
-    name: Secret Detection
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout full history
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Run Gitleaks
-        uses: gitleaks/gitleaks-action@v2
+      - name: Secret detection
+        id: gitleaks
+        continue-on-error: true
+        uses: gitleaks/gitleaks-action@v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_ENABLE_COMMENTS: "false"
+          GITLEAKS_ENABLE_SUMMARY: "false"
 
-  semgrep:
-    name: Semgrep SAST
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Semgrep SAST
+        id: semgrep
+        continue-on-error: true
+        run: |
+          python -m pip install semgrep
+          semgrep scan --config p/python --config p/security-audit --error --exclude tests
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
+      - name: Dependency audit
+        id: dependency-audit
+        continue-on-error: true
+        run: |
+          python -m pip install pip-audit
+          pip-audit -r requirements.txt
 
-      - name: Install Semgrep
-        run: python -m pip install semgrep
-
-      - name: Run Semgrep security rules
-        run: semgrep scan --config p/python --config p/security-audit --error --exclude tests
-
-  dependency-audit:
-    name: Dependency Audit
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Install pip-audit
-        run: python -m pip install pip-audit
-
-      - name: Audit dependencies
-        run: pip-audit -r requirements.txt
-
-  codeql:
-    name: CodeQL
-    runs-on: ubuntu-latest
-    permissions:
-      actions: read
-      contents: read
-      security-events: write
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
+      - name: CodeQL analysis
+        id: codeql
+        continue-on-error: true
+        uses: github/codeql-action/init@v4
         with:
           languages: python
 
       - name: Perform CodeQL analysis
-        uses: github/codeql-action/analyze@v3
+        id: codeql-analyze
+        continue-on-error: true
+        uses: github/codeql-action/analyze@v4
 
-  gate:
-    name: Security Gate
-    if: ${{ always() }}
-    needs:
-      - tests
-      - gitleaks
-      - semgrep
-      - dependency-audit
-      - codeql
-    runs-on: ubuntu-latest
-    steps:
-      - name: Evaluate required security checks
+      - name: Publish SecurePR result
+        id: result
+        if: always()
         env:
-          TESTS_RESULT: ${{ needs.tests.result }}
-          GITLEAKS_RESULT: ${{ needs.gitleaks.result }}
-          SEMGREP_RESULT: ${{ needs.semgrep.result }}
-          DEPENDENCY_RESULT: ${{ needs.dependency-audit.result }}
-          CODEQL_RESULT: ${{ needs.codeql.result }}
+          INSTALL_RESULT: ${{ steps.install.outcome }}
+          TEST_RESULT: ${{ steps.security-tests.outcome }}
+          GITLEAKS_RESULT: ${{ steps.gitleaks.outcome }}
+          SEMGREP_RESULT: ${{ steps.semgrep.outcome }}
+          DEPENDENCY_RESULT: ${{ steps.dependency-audit.outcome }}
+          CODEQL_INIT_RESULT: ${{ steps.codeql.outcome }}
+          CODEQL_ANALYZE_RESULT: ${{ steps.codeql-analyze.outcome }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          echo "Security Tests: ${TESTS_RESULT}"
-          echo "Secret Detection: ${GITLEAKS_RESULT}"
-          echo "Semgrep SAST: ${SEMGREP_RESULT}"
-          echo "Dependency Audit: ${DEPENDENCY_RESULT}"
-          echo "CodeQL: ${CODEQL_RESULT}"
+          result() {
+            if [[ "$1" == "success" ]]; then
+              echo "🟢 PASS"
+            else
+              echo "🔴 BLOCK"
+            fi
+          }
 
-          if [[ "${TESTS_RESULT}" != "success" ||
-                "${GITLEAKS_RESULT}" != "success" ||
-                "${SEMGREP_RESULT}" != "success" ||
-                "${DEPENDENCY_RESULT}" != "success" ||
-                "${CODEQL_RESULT}" != "success" ]]; then
-            echo "Security Gate: BLOCK"
-            exit 1
+          overall="PASS"
+          if [[ "$INSTALL_RESULT" != "success" ||
+                "$TEST_RESULT" != "success" ||
+                "$GITLEAKS_RESULT" != "success" ||
+                "$SEMGREP_RESULT" != "success" ||
+                "$DEPENDENCY_RESULT" != "success" ||
+                "$CODEQL_INIT_RESULT" != "success" ||
+                "$CODEQL_ANALYZE_RESULT" != "success" ]]; then
+            overall="BLOCK"
           fi
 
-          echo "Security Gate: PASS"
+          if [[ "$overall" == "PASS" ]]; then
+            echo "## 🟢 SecurePR: PASS" >> "$GITHUB_STEP_SUMMARY"
+            echo "The required automated security checks completed successfully. No blocking finding was reported by SecurePR. Human review is still required before merging." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "## 🔴 SecurePR: BLOCK" >> "$GITHUB_STEP_SUMMARY"
+            echo "One or more required checks did not pass. Review the failed check before merging; SecurePR does not merge or modify the PR automatically." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Check | Result | What it checks |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Dependency install | $(result "$INSTALL_RESULT") | Project dependencies can be installed |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Security tests | $(result "$TEST_RESULT") | Expected security behavior and Python compilation |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Secret detection | $(result "$GITLEAKS_RESULT") | Committed API keys, tokens, passwords, and other secret patterns |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Semgrep SAST | $(result "$SEMGREP_RESULT") | Source-code security patterns and unsafe constructs |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Dependency audit | $(result "$DEPENDENCY_RESULT") | Known vulnerabilities in Python dependencies |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| CodeQL | $(result "$CODEQL_ANALYZE_RESULT") | Semantic source-code security analysis |" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "[Open the full Actions run]($RUN_URL)" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "### Remediation" >> "$GITHUB_STEP_SUMMARY"
+          if [[ "$overall" == "PASS" ]]; then
+            echo "No automated remediation is required. If a finding is reported later, fix the code or dependency in the PR, push the change, and let SecurePR re-run." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "SecurePR reports the failed control; it does not silently edit source code. Apply the recommended fix in the PR, push the change, and re-run the gate. This keeps false-positive decisions and code changes under human control." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          if [[ "$overall" != "PASS" ]]; then
+            exit 1
+          fi
