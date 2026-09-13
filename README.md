@@ -2,13 +2,9 @@
 
 ## Secure Pull Request Security Gate
 
-SecurePR is a DevSecOps proof of concept that places repeatable security checks into a pull-request workflow for a small Python application. The goal is to demonstrate how security requirements are translated into automated controls and a clear security-gate decision before code is merged.
+SecurePR is a DevSecOps proof of concept that places repeatable security checks into a pull-request workflow for a small Python application. The project demonstrates how security requirements are translated into automated controls and a clear security-gate decision before code is merged.
 
 SecurePR is not intended to claim complete vulnerability detection. Different security concerns require different controls, and some issues still require tests, threat modeling, or human review.
-
-## Problem
-
-Security issues can enter software through source-code changes, exposed credentials, vulnerable dependencies, insecure configuration, weak cryptography, unsafe CI/CD workflows, and application behavior that static analysis cannot fully understand. SecurePR focuses on detecting a practical set of these issues early in the pull-request process.
 
 ## Architecture
 
@@ -31,11 +27,11 @@ PASS / BLOCK
 
 The sample application is intentionally small so the project can focus on demonstrating security controls rather than building a large product. The checks remain separated enough to be reused with another compatible repository later.
 
-## Phase 2 Progress
+## Phase 3 — Security Gate Demonstrated
 
-### Completed baseline
+### Clean baseline
 
-The repository currently contains:
+The repository contains:
 
 - A small Flask sample application
 - Password-hash-based authentication logic using Werkzeug
@@ -48,22 +44,60 @@ The repository currently contains:
 - Gitleaks secret detection
 - pip-audit dependency auditing
 - Python compilation verification
+- An explicit Security Gate that evaluates the five required checks
 
-The dependency baseline was also corrected after CI identified a known vulnerability in the earlier pytest 8.4.2 resolution. `requirements.txt` now requires `pytest>=9.0.3,<10`.
+The dependency baseline was corrected after CI identified a known vulnerability in the earlier pytest 8.4.2 resolution. `requirements.txt` now requires `pytest>=9.0.3,<10`.
 
-### Verified CI baseline
+### Verified clean baseline
 
-The latest baseline workflow run on `main` completed successfully. The five current jobs all passed:
+The clean `main` baseline has passed all five required security jobs:
 
-- Security Tests — passed
-- Secret Detection — passed
-- Semgrep SAST — passed
-- Dependency Audit — passed
-- CodeQL — passed
+- Security Tests — PASS
+- Secret Detection — PASS
+- Semgrep SAST — PASS
+- Dependency Audit — PASS
+- CodeQL — PASS
 
-This verifies the clean baseline. It does **not** yet prove that SecurePR can detect and block an intentionally vulnerable pull request; that is the next demonstration stage.
+The explicit Security Gate also passed on the Phase 3 implementation pull request.
+
+### Controlled vulnerable-PR demonstration
+
+A separate Phase 3 demonstration pull request intentionally introduced a **synthetic AWS-style access key** into `demo/intentional-secret.py`. No real credential was used.
+
+Gitleaks detected the value using its `aws-access-token` rule. The finding was reported against the demonstration file and the Secret Detection job failed. The Security Gate then failed because one of its required checks was unsuccessful.
+
+The demonstrated result was therefore:
+
+```text
+Synthetic secret introduced
+        ↓
+Gitleaks → BLOCKING FINDING
+        ↓
+Secret Detection → FAIL
+        ↓
+Security Gate → BLOCK
+```
+
+The vulnerable demonstration was kept off `main` and the demonstration PR was closed without merging it.
+
+### Corrected-PR demonstration
+
+A separate clean demonstration branch was created from `main`. Instead of committing a credential, the corrected example read the credential from the execution environment with `os.getenv()`.
+
+The corrected pull request passed:
+
+- Security Tests — PASS
+- Secret Detection — PASS
+- Semgrep SAST — PASS
+- Dependency Audit — PASS
+- CodeQL — PASS
+- Security Gate — PASS
+
+The corrected PR was also closed without merging, so `main` remains the clean project baseline.
 
 ## Local Setup and Verification
+
+Both platform-specific setup scripts create and use `.venv` for project dependencies.
 
 ### Linux or macOS (Bash)
 
@@ -73,7 +107,7 @@ chmod +x scripts/setup.sh scripts/verify.sh
 ./scripts/verify.sh
 ```
 
-The setup script creates `.venv` and installs the dependency ranges from `requirements.txt`. The verification script automatically uses that virtual environment when it exists.
+The setup script creates `.venv` and installs the dependency ranges from `requirements.txt`. The verification script automatically uses the local virtual environment when it exists.
 
 ### Windows (PowerShell)
 
@@ -92,33 +126,20 @@ Then run:
 
 The PowerShell setup script creates `.venv` and installs the project dependencies. The verification script uses the local virtual environment automatically when it exists.
 
-## What You Can Test Now
+## What Has Been Tested
 
-From a clean checkout of `main`, the first local test should establish the same clean baseline that CI uses.
+### Local baseline
 
-### 1. Run the local application tests
+The Windows PowerShell setup and verification were executed successfully using `.venv`:
 
-Linux/macOS:
-
-```bash
-./scripts/verify.sh
+```text
+8 passed in 0.47s
+SecurePR verification passed.
 ```
 
-Windows PowerShell:
+### GitHub Actions
 
-```powershell
-.\scripts\verify.ps1
-```
-
-You should see pytest complete successfully followed by Python compilation completing without errors. Do not treat an expected result as evidence until you have actually run it locally.
-
-### 2. Inspect the GitHub Actions baseline
-
-Open the Actions page for the repository and inspect the latest `SecurePR Security Gate` run. The current baseline should show all five jobs passing.
-
-### 3. Do not modify `main` with a vulnerable example yet
-
-The clean baseline is intentionally kept safe. The next stage will create a separate demonstration branch and pull request containing a controlled, synthetic vulnerability. That PR will be used to verify that the expected scanner actually detects the issue and that the security gate fails for the right reason.
+The workflow has been tested on both clean and intentionally vulnerable pull-request states. The vulnerable demonstration produced a real Gitleaks finding and a failed Security Gate. The corrected demonstration produced successful results for all five required controls and a successful Security Gate.
 
 ## Security Coverage
 
@@ -138,41 +159,26 @@ The planned coverage includes:
 - Debug and insecure configuration
 - Sensitive logging and error-information disclosure
 - Fail-open and data-integrity issues
-- Container configuration issues if Docker remains part of the implementation
+- Container configuration issues if Docker becomes part of the implementation
 - Security-design and business-logic issues through threat modeling and human review
 
-The project will only claim coverage that is demonstrated by the implemented controls and tests.
+The project only claims coverage that is demonstrated by the implemented controls and tests. The Phase 3 demonstration specifically verifies the secret-detection path and PASS/BLOCK gate behavior.
 
 ## Security Controls
 
-| Area | Control | Current Phase 2 status |
+| Area | Control | Phase 3 status |
 |---|---|---|
-| SAST | CodeQL | Baseline verified |
-| Additional SAST | Semgrep | Baseline verified |
-| Secrets | Gitleaks | Baseline verified |
-| Python dependencies | pip-audit | Baseline verified |
-| Dependency changes | GitHub Dependency Review where supported | Planned/conditional |
-| Security behavior | pytest | Baseline verified |
-| Workflow security | Workflow permissions and review | Baseline implemented; targeted validation next |
-| CI orchestration | GitHub Actions | Baseline verified |
+| SAST | CodeQL | Baseline and corrected PR verified |
+| Additional SAST | Semgrep | Baseline and corrected PR verified |
+| Secrets | Gitleaks | Clean baseline passed; synthetic secret was detected and blocked |
+| Python dependencies | pip-audit | Baseline and corrected PR verified |
+| Dependency changes | GitHub Dependency Review where supported | Conditional / not yet demonstrated |
+| Security behavior | pytest | Baseline and corrected PR verified |
+| Security Gate | Explicit PASS/BLOCK job | Vulnerable PR blocked; corrected PR passed |
+| Workflow security | Workflow permissions and review | Implemented and reviewed |
+| CI orchestration | GitHub Actions | Verified |
 | Application | Python / Flask | Implemented |
 | Optional container support | Docker | Conditional; not currently required |
-
-## Expected Demonstration
-
-The completed project will demonstrate:
-
-1. A clean baseline that passes.
-2. An intentionally vulnerable pull request containing a controlled, synthetic security issue.
-3. The relevant security control detecting the issue.
-4. A failed security gate / `BLOCK` result.
-5. Evidence of the finding without exposing real credentials or sensitive information.
-6. A corrected pull request.
-7. A passing security gate / `PASS` result.
-
-The demonstration is being built incrementally. Documentation will be updated with actual findings and results after each demonstration rather than describing unexecuted results as completed.
-
-Demonstration credentials and secrets will be synthetic and non-sensitive.
 
 ## Project Structure
 
@@ -195,8 +201,6 @@ SecurePR/
 │   ├── threat-model.md
 │   ├── security-checks.md
 │   └── testing.md
-├── evidence/
-│   └── verified results
 ├── .github/
 │   └── workflows/
 │       └── security.yml
@@ -236,7 +240,9 @@ SecurePR/
 - SBOM generation and analysis
 - More project-specific security rules
 - Detailed pull-request security reporting
+- Workflow-specific security linting
+- Broader vulnerable-PR demonstrations for selected SAST findings
 
 ## Status
 
-**Phase 2 — clean baseline verified.** The sample application, baseline tests, cross-platform setup, and first automated security checks are implemented and the latest five-job GitHub Actions baseline passed. The next step is the controlled vulnerable-PR demonstration, followed by the corrected-PR demonstration and evidence collection.
+**Phase 3 — security gate and controlled secret-detection demonstration verified.** The clean baseline, explicit PASS/BLOCK gate, intentional synthetic-secret blocking demonstration, and corrected passing demonstration have all been executed. The demonstration pull requests remain unmerged so `main` stays clean.
