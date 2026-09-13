@@ -21,22 +21,33 @@ def test_sarif_results_are_read_and_normalized(tmp_path: Path):
     }), encoding="utf-8")
     items = list(iter_results(tmp_path))
     assert len(items) == 1
-    assert finding_key(items[0])[1:] == ("py/test-rule", "app.py", 10, "Unsafe flow")
+    assert finding_key(items[0]) == ("app.py", 10)
 
 
-def test_sarif_duplicate_results_share_one_key():
-    item = {
+def test_same_location_from_multiple_tools_has_one_normalized_key():
+    codeql = {
         "tool": "CodeQL",
         "result": {
-            "ruleId": "x",
-            "message": {"text": "same"},
+            "ruleId": "py/test-rule",
+            "message": {"text": "Unsafe flow"},
             "locations": [{"physicalLocation": {
                 "artifactLocation": {"uri": "app.py"},
-                "region": {"startLine": 1},
+                "region": {"startLine": 10},
             }}],
         },
     }
-    assert finding_key(item) == finding_key(item)
+    semgrep = {
+        "tool": "Semgrep",
+        "result": {
+            "ruleId": "custom/test-rule",
+            "message": {"text": "Equivalent unsafe flow"},
+            "locations": [{"physicalLocation": {
+                "artifactLocation": {"uri": "app.py"},
+                "region": {"startLine": 10},
+            }}],
+        },
+    }
+    assert finding_key(codeql) == finding_key(semgrep)
 
 
 def test_securepr_custom_credential_rules_match_high_confidence_cases():
