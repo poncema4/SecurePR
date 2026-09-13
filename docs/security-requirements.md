@@ -27,17 +27,25 @@ SecurePR shall:
 
 The gate shall scan the repository and pull-request changes for exposed secrets, including API keys, cloud credentials, tokens, passwords, private keys, connection strings, and other credential-like material that the selected scanner can detect.
 
+**Phase 3 verification:** A synthetic AWS-style access key was detected by Gitleaks under its `aws-access-token` rule, causing the Secret Detection job to fail.
+
 ### SR-02 — Source-Code Security Analysis
 
 The gate shall analyze Python source code for selected security-relevant weaknesses, including injection, unsafe command execution, path traversal, unsafe deserialization, insecure data flow, and other applicable findings supported by the selected SAST rules.
+
+**Phase 3 verification:** Semgrep and CodeQL both passed the controlled secret demonstration and the corrected demonstration. This phase did not claim a new SAST vulnerability class was demonstrated.
 
 ### SR-03 — Dependency Security
 
 The gate shall check Python dependencies for known vulnerabilities. Dependency changes introduced by a pull request should also be reviewable through dependency-diff controls where GitHub provides the required support.
 
+**Phase 3 verification:** pip-audit passed the vulnerable-secret and corrected demonstration runs because neither intentionally changed the dependency set.
+
 ### SR-04 — Security Tests
 
 The project shall include pytest-based tests for security behavior that static analysis cannot reliably establish, including applicable authentication, authorization, input-validation, error-handling, and regression requirements.
+
+**Phase 3 verification:** Security Tests passed in the vulnerable-secret and corrected demonstration runs.
 
 ### SR-05 — Cryptographic Security
 
@@ -67,7 +75,15 @@ If Docker remains part of the implemented application, container configuration s
 
 A pull request shall be considered `BLOCK` when a defined blocking control fails. A pull request shall be considered `PASS` only when all required blocking controls complete successfully and no blocking finding remains.
 
-The current Phase 2 workflow establishes five required baseline checks: Security Tests, Secret Detection, Semgrep SAST, Dependency Audit, and CodeQL. The clean baseline has passed all five. The exact vulnerable-finding-to-gate behavior will be documented from actual pull-request demonstrations rather than assumed scanner behavior.
+The Phase 3 workflow has an explicit Security Gate job that evaluates these five required checks:
+
+1. Security Tests
+2. Secret Detection
+3. Semgrep SAST
+4. Dependency Audit
+5. CodeQL
+
+The controlled vulnerable-secret demonstration produced a failed Secret Detection job and a failed Security Gate. The corrected demonstration produced successful results for all five required checks and a successful Security Gate.
 
 ## 5. Human Review Boundary
 
@@ -77,4 +93,4 @@ SecurePR shall document that automated checks are not a replacement for human se
 
 The completed project shall demonstrate at least one intentionally vulnerable pull request that is blocked by the security gate and a corrected version that passes. Demonstration secrets and credentials must be fake and must never be usable credentials.
 
-The demonstration will be performed on separate branches so the clean `main` baseline remains intact. Each demonstrated vulnerability will be documented only after the corresponding CI result has been observed.
+Phase 3 verified this requirement with two separate demonstration pull requests. The vulnerable PR remained unmerged, and the corrected PR was also left unmerged so `main` remained clean.
