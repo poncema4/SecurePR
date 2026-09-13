@@ -19,20 +19,21 @@ def iter_results(root: Path) -> Iterable[dict]:
                 yield {"tool": tool, "result": result}
 
 
-def finding_key(item: dict) -> tuple[str, int]:
+def finding_key(item: dict) -> tuple[str, int, str, str]:
     result = item["result"]
     location = (result.get("locations") or [{}])[0]
     physical = location.get("physicalLocation") or {}
     region = physical.get("region") or {}
-    return (
-        physical.get("artifactLocation", {}).get("uri", "unknown"),
-        int(region.get("startLine", 0)),
-    )
+    uri = physical.get("artifactLocation", {}).get("uri", "unknown")
+    line = int(region.get("startLine", 0))
+    rule = result.get("ruleId", "unknown")
+    message = result.get("message", {}).get("text", "").strip()
+    return uri, line, rule, message
 
 
 def main() -> int:
     root = Path(sys.argv[1] if len(sys.argv) > 1 else ".")
-    grouped: dict[tuple[str, int], list[dict]] = defaultdict(list)
+    grouped: dict[tuple[str, int, str, str], list[dict]] = defaultdict(list)
     for item in iter_results(root):
         grouped[finding_key(item)].append(item)
 
@@ -44,19 +45,16 @@ def main() -> int:
             print("No SARIF findings detected.")
             return 0
         out.write("| Location | Tools | Rules | Findings |\n|---|---|---|---|\n")
-        for (uri, line), items in sorted(grouped.items()):
+        for (uri, line, rule, message), items in sorted(grouped.items()):
             tools = sorted({item["tool"] for item in items})
-            rules = sorted({item["result"].get("ruleId", "unknown") for item in items})
-            messages = sorted({item["result"].get("message", {}).get("text", "").strip() for item in items})
-            safe_messages = "<br>".join(message.replace("|", "\\|") for message in messages)
+            safe_message = message.replace("|", "\\|")
             out.write(
-                f"| `{uri}:{line}` | {', '.join(tools)} | {', '.join(f'`{rule}`' for rule in rules)} | {safe_messages} |\n"
+                f"| `{uri}:{line}` | {', '.join(tools)} | `{rule}` | {safe_message} |\n"
             )
 
-    print(f"Detected {len(grouped)} unique security finding locations across SARIF-producing checks.")
-    for (uri, line), items in list(sorted(grouped.items()))[:20]:
-        messages = sorted({item["result"].get("message", {}).get("text", "").strip() for item in items})
-        print(f"::error title=SecurePR finding::{uri}:{line} — {' / '.join(messages)}")
+    print(f"Detected {len(grouped)} unique normalized security findings across SARIF-producing checks.")
+    for (uri, line, rule, message), _items in list(sorted(grouped.items()))[:20]:
+        print(f"::error title=SecurePR finding::{uri}:{line} — {rule}: {message}")
     return 1
 
 
