@@ -31,19 +31,41 @@ Run CodeQL, Semgrep, Gitleaks, pip-audit, and applicable workflow checks against
 
 Verify that GitHub Actions starts on the intended events, executes required controls, and produces the correct PASS/BLOCK behavior.
 
-## 3. Required Demonstration Sequence
+## 3. Phase 2 Baseline Result
 
-1. Establish a clean baseline that passes the required controls.
-2. Create a pull request containing a controlled, intentionally vulnerable change.
-3. Verify that the expected security control detects the issue.
-4. Verify that the security gate produces `BLOCK`.
-5. Capture evidence of the finding and gate decision without exposing sensitive data.
-6. Correct the vulnerability.
-7. Re-run the workflow on the corrected pull request.
-8. Verify that the required controls pass and the gate produces `PASS`.
-9. Capture evidence and update documentation with the actual results.
+The clean baseline has now been executed in GitHub Actions on `main`.
 
-## 4. Safety Requirements
+The latest baseline run completed successfully with all five current jobs passing:
+
+| Control | Result |
+|---|---|
+| Security Tests | PASS |
+| Gitleaks Secret Detection | PASS |
+| Semgrep SAST | PASS |
+| pip-audit Dependency Audit | PASS |
+| CodeQL | PASS |
+
+This is a verified baseline result, not a predicted result. The local verification scripts are also part of the Phase 2 implementation so the application tests and Python compilation can be reproduced on Linux/macOS and Windows.
+
+## 4. Required Demonstration Sequence
+
+The security demonstrations will now proceed from the verified clean baseline:
+
+1. Preserve the clean `main` baseline.
+2. Create a separate demonstration branch.
+3. Introduce one controlled, intentionally vulnerable change using synthetic/non-sensitive data.
+4. Open a pull request against `main`.
+5. Verify that the expected security control detects the issue.
+6. Verify that the security gate produces `BLOCK` or an equivalent failed required check.
+7. Capture evidence of the finding and gate decision without exposing sensitive data.
+8. Correct the vulnerability on the demonstration branch.
+9. Re-run the workflow on the corrected pull request.
+10. Verify that the required controls pass and the gate produces `PASS` or an equivalent successful required check.
+11. Capture evidence and update this document, the README, and the other project documentation with the actual results.
+
+The vulnerable and corrected demonstrations will be kept separate from the clean baseline so `main` remains a known-good starting point.
+
+## 5. Safety Requirements
 
 - Use fake secrets only.
 - Never use real API keys, passwords, private keys, tokens, or cloud credentials in demonstrations.
@@ -51,14 +73,15 @@ Verify that GitHub Actions starts on the intended events, executes required cont
 - Do not scan or attack production systems.
 - Avoid creating vulnerabilities that could affect unrelated users or infrastructure.
 
-## 5. Evidence
+## 6. Evidence
 
 Planned evidence includes:
 
 - Successful baseline workflow
+- Local verification result
 - Secret-detection failure
 - SAST finding
-- Dependency finding
+- Dependency finding where safely reproducible
 - Security-test result
 - `BLOCK` gate result
 - Corrected `PASS` result
@@ -67,8 +90,10 @@ Planned evidence includes:
 
 Evidence will only be collected after the corresponding control has actually been executed.
 
-## 6. Completion Criteria
+## 7. Completion Criteria
 
 Phase 1 is complete when requirements, architecture, security coverage, threat model, and testing strategy are documented consistently with the planned MVP.
 
-Implementation is not considered complete until the actual security checks and tests run successfully, the workflow behaves as intended, a vulnerable change is blocked, a corrected change passes, evidence is collected, and documentation reflects the verified implementation.
+Phase 2 baseline implementation is complete when the sample application, tests, local setup, and baseline security workflow are implemented and the required baseline controls pass. That baseline has now been verified.
+
+The security-gate demonstration portion of Phase 2 is not considered complete until an intentionally vulnerable pull request is actually detected and blocked, a corrected version actually passes, evidence is collected, and the documentation reflects those real results.
