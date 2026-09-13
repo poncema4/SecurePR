@@ -3,13 +3,23 @@ name: SecurePR Reusable Security Gate
 on:
   workflow_call:
     inputs:
+      tooling-repository:
+        description: SecurePR repository providing the reusable tooling.
+        required: false
+        type: string
+        default: poncema4/SecurePR
+      tooling-ref:
+        description: SecurePR ref to use for reusable tooling.
+        required: false
+        type: string
+        default: main
       python-version:
         description: Python version used by SecurePR tooling when Python analysis is applicable.
         required: false
         type: string
         default: "3.12"
       run_project_tests:
-        description: Run detected project test commands when they are safely discoverable.
+        description: Run detected project test commands when safely discoverable.
         required: false
         type: boolean
         default: true
@@ -33,22 +43,24 @@ jobs:
       - name: Checkout SecurePR tooling
         uses: actions/checkout@v6
         with:
-          repository: poncema4/SecurePR
-          ref: main
+          repository: ${{ inputs.tooling-repository }}
+          ref: ${{ inputs.tooling-ref }}
           path: .securepr-tooling
           sparse-checkout: |
+            scripts/accuracy_report.py
+            scripts/accuracy_metrics.py
             scripts/repository_profile.py
             scripts/summarize_sarif.py
             .semgrep_securepr.yml
-
-      - name: Detect repository profile
-        id: profile
-        run: python .securepr-tooling/scripts/repository_profile.py
 
       - name: Set up Python for SecurePR tooling
         uses: actions/setup-python@v7
         with:
           python-version: ${{ inputs.python-version }}
+
+      - name: Detect repository profile
+        id: profile
+        run: python .securepr-tooling/scripts/repository_profile.py
 
       - name: Install Python project dependencies
         id: python-install
@@ -67,7 +79,11 @@ jobs:
         if: inputs.run_project_tests && hashFiles('package.json') != ''
         continue-on-error: true
         run: |
-          if [[ -f package-lock.json ]]; then npm ci --ignore-scripts; fi
+          if [[ -f package-lock.json ]]; then
+            npm ci --ignore-scripts
+          else
+            npm install --ignore-scripts
+          fi
           npm test --if-present
           npm run typecheck --if-present
 
@@ -131,6 +147,14 @@ jobs:
           python .securepr-tooling/scripts/summarize_sarif.py .
           if [[ -f securepr-findings.md ]]; then cat securepr-findings.md >> "$GITHUB_STEP_SUMMARY"; fi
 
+      - name: Accuracy status
+        id: accuracy
+        if: always()
+        continue-on-error: true
+        run: |
+          python .securepr-tooling/scripts/accuracy_report.py > securepr-accuracy.md
+          cat securepr-accuracy.md >> "$GITHUB_STEP_SUMMARY"
+
       - name: Publish SecurePR result
         if: always()
         env:
@@ -143,11 +167,14 @@ jobs:
           CODEQL_INIT: ${{ steps.codeql-init.outcome }}
           CODEQL_ANALYZE: ${{ steps.codeql-analyze.outcome }}
           FINDING_SUMMARY: ${{ steps.finding-summary.outcome }}
+          ACCURACY: ${{ steps.accuracy.outcome }}
         run: |
           blocking=0
           for value in "$PYTHON_INSTALL" "$PYTHON_TESTS" "$NODE_TESTS" "$DEPENDENCY" "$GITLEAKS" "$SEMGREP" "$CODEQL_INIT" "$CODEQL_ANALYZE" "$FINDING_SUMMARY"; do
             if [[ "$value" == "failure" ]]; then blocking=1; fi
           done
+
+          if [[ "$ACCURACY" == "failure" ]]; then blocking=1; fi
 
           if [[ "$blocking" -eq 0 ]]; then
             echo "## 🟢 SecurePR: PASS" >> "$GITHUB_STEP_SUMMARY"
@@ -169,14 +196,17 @@ jobs:
           echo "| Semgrep SAST | ${SEMGREP:-not applicable} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| CodeQL | ${CODEQL_ANALYZE:-not applicable} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Normalized findings | ${FINDING_SUMMARY:-not applicable} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Accuracy status | ${ACCURACY:-not applicable} |" >> "$GITHUB_STEP_SUMMARY"
+
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "### Fixes to make this PASS" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           if [[ "$blocking" -eq 0 ]]; then
-            echo "No blocking fixes are required for this run. Continue human security review, especially for design, business logic, authorization intent, and other context-dependent controls." >> "$GITHUB_STEP_SUMMARY"
+            echo "No blocking fixes are required for this run. Human review is always recommended, including review of security design, business logic, authorization intent, configuration, and tool coverage." >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "Review each failed control's native Actions output. Correct the underlying issue rather than suppressing a finding without evidence. Then push the remediation and rerun SecurePR." >> "$GITHUB_STEP_SUMMARY"
+            echo "Review each failed control's native Actions output. Correct the underlying issue rather than suppressing a finding without evidence. Then push the remediation and rerun SecurePR. Human review is always recommended after remediation." >> "$GITHUB_STEP_SUMMARY"
           fi
+
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "### Human review and accuracy boundary" >> "$GITHUB_STEP_SUMMARY"
           echo "SecurePR provides automated security evidence, not a guarantee that a repository is vulnerability-free. Human review is always recommended. Automated analysis can produce false positives and false negatives, especially for business logic, runtime behavior, configuration, architecture, and unsupported language/tool coverage." >> "$GITHUB_STEP_SUMMARY"
