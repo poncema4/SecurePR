@@ -39,14 +39,43 @@ The initial implementation now contains:
 - Password-hash-based authentication logic
 - Login, user-profile, and input-validation endpoints
 - Pytest security and behavior tests
-- A local verification script
+- Cross-platform local setup and verification scripts
 - GitHub Actions orchestration for the baseline security gate
 - CodeQL SAST
 - Semgrep SAST
 - Gitleaks secret detection
 - pip-audit dependency auditing
 
-This baseline is intentionally clean. Vulnerable changes will be introduced later through test pull requests so the gate can be evaluated without permanently placing intentionally vulnerable code on `main`.
+The baseline is intentionally clean. Vulnerable changes will be introduced later through test pull requests so the gate can be evaluated without permanently placing intentionally vulnerable code on `main`.
+
+## Local Setup and Verification
+
+### Linux or macOS (Bash)
+
+```bash
+chmod +x scripts/setup.sh scripts/verify.sh
+./scripts/setup.sh
+./scripts/verify.sh
+```
+
+The setup script creates a local `.venv` and installs the pinned dependency ranges from `requirements.txt`. The verification script automatically uses that virtual environment when it exists.
+
+### Windows (PowerShell)
+
+If PowerShell's execution policy prevents local scripts from running, allow scripts for the current PowerShell process only:
+
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+```
+
+Then run:
+
+```powershell
+.\scripts\setup.ps1
+.\scripts\verify.ps1
+```
+
+The PowerShell setup script creates `.venv` and installs the project dependencies. The verification script uses the local virtual environment automatically when it exists.
 
 ## Security Coverage
 
@@ -103,7 +132,10 @@ SecurePR/
 │   ├── __init__.py
 │   └── test_app.py
 ├── scripts/
-│   └── verify.sh
+│   ├── setup.sh
+│   ├── setup.ps1
+│   ├── verify.sh
+│   └── verify.ps1
 ├── docs/
 │   ├── architecture.md
 │   ├── security-requirements.md
@@ -154,4 +186,4 @@ SecurePR/
 
 ## Status
 
-**Phase 2 — baseline implementation.** The sample application, baseline tests, and first automated security checks are now in the repository. The next work is to execute and validate the baseline, fix any real failures, and then build the vulnerable-PR/BLOCK and corrected-PR/PASS demonstrations.
+**Phase 2 — baseline implementation.** The sample application, baseline tests, local setup, and first automated security checks are now in the repository. The next work is to execute and validate the baseline, fix any real failures, and then build the vulnerable-PR/BLOCK and corrected-PR/PASS demonstrations.
