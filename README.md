@@ -13,19 +13,21 @@ Developer
    ↓
 Pull Request
    ↓
-GitHub Actions
+One GitHub Actions Security Gate Job
    ├── Security Tests
    ├── Secret Detection (Gitleaks)
    ├── Semgrep SAST
    ├── Dependency Audit (pip-audit)
    └── CodeQL SAST
    ↓
-Security Gate
+One PASS / BLOCK result
    ↓
-PASS / BLOCK
+Human review before merge
 ```
 
-The sample application is intentionally small so the project can focus on demonstrating security controls rather than building a large product. The checks remain separated enough to be reused with another compatible repository later.
+The checks run as separate steps inside one job. This keeps the tools logically separated and visible in the Actions logs while giving the pull request one overall SecurePR status instead of five separate job-level results. A final step writes a short PASS/BLOCK summary with a table and a link to the full Actions run.
+
+The sample application is intentionally small so the project can focus on demonstrating security controls rather than building a large product.
 
 ## Phase 3 — Security Gate Demonstrated
 
@@ -44,27 +46,28 @@ The repository contains:
 - Gitleaks secret detection
 - pip-audit dependency auditing
 - Python compilation verification
-- An explicit Security Gate that evaluates the five required checks
+- A single SecurePR Security Gate job with an explicit PASS/BLOCK result
 
 The dependency baseline was corrected after CI identified a known vulnerability in the earlier pytest 8.4.2 resolution. `requirements.txt` now requires `pytest>=9.0.3,<10`.
 
 ### Verified clean baseline
 
-The clean `main` baseline has passed all five required security jobs:
+The earlier Phase 3 clean baseline passed all required controls:
 
 - Security Tests — PASS
 - Secret Detection — PASS
 - Semgrep SAST — PASS
 - Dependency Audit — PASS
 - CodeQL — PASS
+- Security Gate — PASS
 
-The explicit Security Gate also passed on the Phase 3 implementation pull request.
+The new single-job gate architecture is being verified again after the Phase 3 refinement before the phase is declared complete.
 
 ### Controlled vulnerable-PR demonstration
 
 A separate Phase 3 demonstration pull request intentionally introduced a **synthetic AWS-style access key** into `demo/intentional-secret.py`. No real credential was used.
 
-Gitleaks detected the value using its `aws-access-token` rule. The finding was reported against the demonstration file and the Secret Detection job failed. The Security Gate then failed because one of its required checks was unsuccessful.
+Gitleaks detected the value using its `aws-access-token` rule. The finding was reported against the demonstration file and the Secret Detection control failed. The Security Gate then failed because one of its required controls was unsuccessful.
 
 The demonstrated result was therefore:
 
@@ -75,7 +78,7 @@ Gitleaks → BLOCKING FINDING
         ↓
 Secret Detection → FAIL
         ↓
-Security Gate → BLOCK
+SecurePR Security Gate → BLOCK
 ```
 
 The vulnerable demonstration was kept off `main` and the demonstration PR was closed without merging it.
@@ -84,16 +87,35 @@ The vulnerable demonstration was kept off `main` and the demonstration PR was cl
 
 A separate clean demonstration branch was created from `main`. Instead of committing a credential, the corrected example read the credential from the execution environment with `os.getenv()`.
 
-The corrected pull request passed:
+The corrected pull request passed all five required controls and the Security Gate. It was also closed without merging, so `main` remained the clean project baseline.
 
-- Security Tests — PASS
-- Secret Detection — PASS
-- Semgrep SAST — PASS
-- Dependency Audit — PASS
-- CodeQL — PASS
-- Security Gate — PASS
+### PASS/BLOCK reporting and remediation policy
 
-The corrected PR was also closed without merging, so `main` remains the clean project baseline.
+SecurePR is intentionally concise at the top level:
+
+- **🟢 PASS** — the required automated checks completed successfully and no blocking result was reported by SecurePR.
+- **🔴 BLOCK** — at least one required control failed and the PR should be reviewed before merging.
+
+The summary identifies each control, its result, what it checks, and a link to the full Actions run. The detailed tool output remains available in the individual workflow steps.
+
+SecurePR does **not** automatically edit source code or merge a pull request. That is deliberate: an automated scanner can produce a false positive, and automatically changing or merging code could make the situation worse. The normal remediation loop is to review the finding, fix the PR, push the change, and let SecurePR run again.
+
+A future opt-in remediation feature could propose or prepare changes, but it should require an explicit user action and remain separate from the blocking gate.
+
+## Accuracy and False-Positive / False-Negative Handling
+
+SecurePR does not claim perfect detection accuracy. Security scanners can produce false positives, while static analysis can miss vulnerabilities that depend on runtime behavior, business logic, configuration, or a code path outside the tool's coverage.
+
+The Phase 3 design reduces these risks by layering controls rather than relying on one scanner:
+
+- Gitleaks checks committed secret patterns and was validated with a controlled synthetic secret.
+- Semgrep and CodeQL provide complementary static analysis.
+- pip-audit checks known dependency vulnerabilities.
+- Pytest verifies security behavior that static analysis cannot prove reliably.
+- Threat modeling and human review cover design and business-logic issues that automation cannot reliably determine.
+- Vulnerable and corrected demonstrations are used to verify that the gate actually blocks and passes the expected cases.
+
+A blocking result means **review required**, not that the scanner is infallible. A passing result means the configured controls passed; it does not prove that the application contains no vulnerabilities.
 
 ## Local Setup and Verification
 
@@ -141,6 +163,8 @@ SecurePR verification passed.
 
 The workflow has been tested on both clean and intentionally vulnerable pull-request states. The vulnerable demonstration produced a real Gitleaks finding and a failed Security Gate. The corrected demonstration produced successful results for all five required controls and a successful Security Gate.
 
+The Phase 3 refinement is also verified through a new clean `main` workflow run before Phase 3 is considered complete.
+
 ## Security Coverage
 
 The planned coverage includes:
@@ -162,7 +186,7 @@ The planned coverage includes:
 - Container configuration issues if Docker becomes part of the implementation
 - Security-design and business-logic issues through threat modeling and human review
 
-The project only claims coverage that is demonstrated by the implemented controls and tests. The Phase 3 demonstration specifically verifies the secret-detection path and PASS/BLOCK gate behavior.
+The project only claims coverage that is demonstrated by the implemented controls and tests. The Phase 3 demonstrations specifically verify the secret-detection path and PASS/BLOCK gate behavior.
 
 ## Security Controls
 
@@ -174,7 +198,7 @@ The project only claims coverage that is demonstrated by the implemented control
 | Python dependencies | pip-audit | Baseline and corrected PR verified |
 | Dependency changes | GitHub Dependency Review where supported | Conditional / not yet demonstrated |
 | Security behavior | pytest | Baseline and corrected PR verified |
-| Security Gate | Explicit PASS/BLOCK job | Vulnerable PR blocked; corrected PR passed |
+| Security Gate | Single-job PASS/BLOCK result | Refinement implemented; final clean run pending |
 | Workflow security | Workflow permissions and review | Implemented and reviewed |
 | CI orchestration | GitHub Actions | Verified |
 | Application | Python / Flask | Implemented |
@@ -231,6 +255,7 @@ SecurePR/
 - Production deployment
 - Advanced ML-based vulnerability detection
 - Generic security scoring
+- Automatic source-code modification or automatic pull-request merging
 
 ## Future Enhancements
 
@@ -242,7 +267,8 @@ SecurePR/
 - Detailed pull-request security reporting
 - Workflow-specific security linting
 - Broader vulnerable-PR demonstrations for selected SAST findings
+- Explicit, user-triggered remediation proposals that never merge automatically
 
 ## Status
 
-**Phase 3 — security gate and controlled secret-detection demonstration verified.** The clean baseline, explicit PASS/BLOCK gate, intentional synthetic-secret blocking demonstration, and corrected passing demonstration have all been executed. The demonstration pull requests remain unmerged so `main` stays clean.
+**Phase 3 — security gate refinement in final verification.** The clean baseline, intentional synthetic-secret blocking demonstration, corrected passing demonstration, single-job gate design, concise PASS/BLOCK reporting, and no-auto-merge policy are implemented. The final post-refinement workflow run must pass before Phase 3 is declared complete.
