@@ -162,7 +162,7 @@ SecurePR never automatically edits source code, rotates credentials, dismisses f
 ## Final MVP Status
 The SecurePR MVP is **functionally complete as a reusable pull-request security harness**. The final MVP includes the authoritative security gate, reusable workflow, repository/language profiling, multiple underlying security engines, dependency auditing, project tests, SARIF evidence aggregation, OWASP coverage mapping, actionable reporting, and empirical benchmark measurement.
 
-Final validation is based on controlled pull-request executions, the reviewed 26-case benchmark corpus, and successful post-merge `main` verification. The benchmark currently reports 10 TP, 0 FP, 11 TN, and 5 FN: 80.77% conventional classification accuracy, 100% precision, 66.67% recall, and 80.00% F1. These are controlled-corpus measurements, not universal real-world accuracy claims.
+Final validation is based on controlled pull-request executions, the reviewed 35-case benchmark corpus, and successful post-merge `main` verification. The benchmark currently reports 15 TP, 0 FP, 15 TN, and 5 FN: 85.71% conventional classification accuracy, 100% precision, 75.00% recall, and 85.71% F1. These are controlled-corpus measurements, not universal real-world accuracy claims.
 
 ## Out of Scope
 - Automatic vulnerability remediation.
