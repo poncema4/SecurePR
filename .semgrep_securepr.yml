@@ -8,6 +8,25 @@ rules:
           (?i)\b(password|passwd|pwd|secret|api[_-]?key|access[_-]?key|token)\s*[:=]\s*["'][^"'\n]{8,}["']
     paths:
       exclude:
+        - "**/*.py"
+        - "**/tests/**"
+        - "**/docs/**"
+        - "**/.venv/**"
+        - "**/node_modules/**"
+  - id: securepr-python-hardcoded-credential
+    languages: [python]
+    message: Hard-coded password or credential value detected; use an approved secret-management mechanism instead.
+    severity: ERROR
+    patterns:
+      - pattern: $NAME = $VALUE
+      - metavariable-regex:
+          metavariable: $NAME
+          regex: (?i)^(password|passwd|pwd|secret|api[_-]?key|access[_-]?key|token)$
+      - metavariable-regex:
+          metavariable: $VALUE
+          regex: ^["'][^"'\n]{8,}["']$
+    paths:
+      exclude:
         - "**/tests/**"
         - "**/docs/**"
         - "**/.venv/**"
