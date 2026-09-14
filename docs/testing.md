@@ -2,24 +2,7 @@
 
 ## Overview
 
-Testing must show that SecurePR can detect defined security problems, block unsafe pull requests, allow corrected changes to pass, operate against repositories other than the Flask demonstration target, and report its security coverage and accuracy limits honestly.
-
-## Development-Time Tests
-
-Run targeted tests for changed scripts and configuration so broken code is not knowingly committed.
-
-Current test areas include:
-
-- repository/language detection
-- unsupported-language detection
-- SARIF parsing and conservative finding aggregation
-- custom SecurePR Semgrep configuration
-- accuracy-metric formula implementation
-- pending and measured accuracy reporting
-- existing Flask security tests
-- workflow YAML/configuration consistency
-
-Finding-aggregation tests prove both that identical cross-tool findings can be grouped and that distinct findings at the same file/line are not incorrectly collapsed.
+Testing must show that SecurePR detects defined security problems, blocks unsafe pull requests, allows corrected changes to pass, works as a reusable workflow, and reports accuracy honestly.
 
 ## Local Verification
 
@@ -31,31 +14,39 @@ python -m compileall -q app security tests scripts
 python scripts/accuracy_report.py
 ```
 
-These checks validate the SecurePR implementation itself. GitHub Actions remains the authoritative environment for the complete gate because the workflows invoke CodeQL, Semgrep, Gitleaks, dependency audits, and GitHub-specific security reporting.
+On Windows PowerShell, use:
 
-## Testing PASS and BLOCK
+```powershell
+python -m pytest -q
+python -m compileall -q app security tests scripts
+python .\scripts\accuracy_report.py
+```
 
-Use controlled synthetic examples only. Never commit real credentials or attack production systems.
+GitHub Actions is authoritative for the complete gate because it runs CodeQL, Semgrep, Gitleaks, dependency audits, and GitHub-specific reporting.
+
+## PASS and BLOCK testing
+
+Use controlled synthetic examples only. Never commit real credentials.
 
 ### BLOCK test
 
-1. Create an isolated test change containing a known high-confidence security defect, such as a synthetic hard-coded credential that matches the SecurePR rule.
-2. Open or update one PR against `main`.
-3. Confirm the `SecurePR Security Gate` job reports `BLOCK`.
+1. Create a safe synthetic change containing a known high-confidence security defect, such as a credential-like literal that matches a SecurePR rule.
+2. Open one PR against `main`.
+3. Confirm `SecurePR Security Gate` reports `BLOCK`.
 4. Inspect the Check Results table and native tool output.
 
 ### PASS test
 
-1. Remove or remediate the synthetic defect on the **same branch and same PR**.
+1. Fix the synthetic defect on the **same branch and same PR**.
 2. Push the correction.
 3. Confirm the same gate reruns and reports `PASS` when all applicable controls pass.
 4. Confirm human-review guidance remains present.
 
-Do not create a second PR just to test the remediation path. The intended workflow is one PR with the fix pushed to that same branch.
+Do not create a second PR just to test the remediation path.
 
-## Reusable-Repository Testing
+## Reusable workflow testing
 
-The reusable workflow is intended for repositories you control. A target repository can call:
+Add the reusable workflow to a repository you own or are authorized to assess:
 
 ```yaml
 jobs:
@@ -63,53 +54,47 @@ jobs:
     uses: poncema4/SecurePR/.github/workflows/reusable-security.yml@main
 ```
 
-For stronger reproducibility, pin the reusable workflow to a reviewed commit SHA.
+For stronger reproducibility, pin the workflow to a reviewed SecurePR commit SHA.
 
-Test portability using repositories with different stacks, such as:
+The target repository determines which language, dependency, project-test, and CodeQL controls are applicable.
 
-- SecurePR — Python
-- CookieGuard — JavaScript/TypeScript/Node/Next.js
-- NetDefender — whatever supported source languages and dependency artifacts are actually present
+## Real-PR accuracy testing
 
-Do not assume every target receives identical checks. Repository profiling determines which language, dependency, project-test, and CodeQL controls are applicable.
+A normal PR is not automatically a benchmark case because its expected security outcome is unknown.
 
-## Accuracy Benchmark
+For a controlled real-PR benchmark, a trusted reviewer adds exactly one expected-outcome label:
 
-Accuracy must come from a controlled labeled benchmark, not from the fact that a normal PR passed.
+- `securepr-expected-pass`
+- `securepr-expected-block`
 
-For each deliberate benchmark case, record the expected and actual gate result in `docs/accuracy/benchmark-results.csv` after the corresponding GitHub Actions run has been verified.
+The Actions summary immediately reports the current PR's expected result, actual result, and whether the classification is correct. It also reports cumulative metrics from the committed benchmark CSV.
 
-- **TP:** vulnerable case correctly blocked.
-- **FP:** safe case incorrectly blocked.
-- **TN:** safe case correctly passed.
-- **FN:** vulnerable case incorrectly passed.
+This provides real-time measurement without allowing an arbitrary PR to redefine the ground truth.
+
+## Benchmark CSV
+
+`docs/accuracy/benchmark-results.csv` is a reviewed labeled evidence ledger. It is **not** automatically appended on every PR.
+
+After a benchmark PR is executed and verified, record its expected and actual result in the CSV through a normal reviewed change. Use a distinct case identifier for each deliberate case.
+
+Current metrics are calculated from every completed labeled row:
+
+- **TP:** expected BLOCK, actual BLOCK.
+- **FP:** expected PASS, actual BLOCK.
+- **TN:** expected PASS, actual PASS.
+- **FN:** expected BLOCK, actual PASS.
 
 `Precision = TP / (TP + FP)`
 
 `Recall = TP / (TP + FN)`
 
-`F1 = 2 × (Precision × Recall) / (Precision + Recall)`
+`F1 = 2 × Precision × Recall / (Precision + Recall)`
 
-The benchmark CSV is a labeled evidence ledger. It is **not** automatically appended by every ordinary PR. SecurePR cannot safely infer the expected ground-truth result for an arbitrary developer change, so benchmark rows must be deliberately created from controlled cases with known expected outcomes and then updated with the observed result.
+The current benchmark describes its labeled corpus only; it is not a universal real-world accuracy claim.
 
-The current benchmark contains four controlled cases: two expected BLOCK cases and two expected PASS cases. All four matched their expected outcomes.
+## Pull Request versus main
 
-The accuracy report reads the committed CSV and makes the resulting measurements available to the local report and GitHub Actions summary. Adding future benchmark cases requires a deliberate benchmark test followed by a CSV update in the normal review workflow.
-
-Do not claim 90% or 100% universal accuracy from this benchmark. The current measured result describes the four-case tested corpus and its configuration.
-
-## PASS/BLOCK and Human Review
-
-There are exactly two gate outcomes:
-
-- `PASS` — configured blocking controls passed and no blocking security finding remains.
-- `BLOCK` — at least one configured blocking control failed or a blocking security finding remains.
-
-There is no separate `REVIEW` gate state. Human review is always recommended for both outcomes, especially for business logic, design, authorization intent, architecture, and findings that may be false positives.
-
-## Pull Request Versus Main
-
-A passing PR does not guarantee that the post-merge `main` workflow will pass. The PR run and push-to-main run are separate executions. Final verification requires both.
+A passing PR does not guarantee that the post-merge `main` workflow will pass. Final verification requires both the PR run and the independent `main` run.
 
 ## Safety
 
@@ -121,4 +106,4 @@ A passing PR does not guarantee that the post-merge `main` workflow will pass. T
 
 ## Completion Criteria
 
-The MVP is complete when implementation, local verification, reusable-repository demonstrations, documentation audit, consolidated PR validation, merge, and post-merge `main` verification pass. The benchmark is separately considered complete only after its labeled cases have actually been executed and recorded.
+The MVP is complete when implementation, local verification, reusable-workflow validation, documentation review, consolidated PR validation, merge, and post-merge `main` verification pass. Accuracy is continuously measurable for labeled benchmark cases and grows as verified cases are deliberately added to the benchmark ledger.
