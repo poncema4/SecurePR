@@ -34,3 +34,5 @@ mock-032,hardcoded-credential,Hardcoded password assignment fixture,BLOCK,BLOCK,
 mock-033,safe-change,Benign Python square helper,PASS,PASS,PR #56 / Actions run #192
 mock-034,injection-unsafe-eval,Dynamic eval execution fixture,BLOCK,BLOCK,PR #57 / Actions run #193
 mock-035,hardcoded-credential,Hardcoded password assignment with underscore in literal,BLOCK,BLOCK,PR #61 / Actions run #199
+mock-036,safe-change,Manual benign change used to validate PASS behavior,PASS,PASS,PR #63 / Actions run #202
+mock-037,hardcoded-credential,Manual hardcoded password assignment expected to block,BLOCK,PASS,PR #64 / Actions run #203
