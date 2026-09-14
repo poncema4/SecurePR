@@ -178,8 +178,6 @@ The SecurePR MVP is **functionally complete as a reusable pull-request security 
 
 Final validation is based on controlled pull-request executions, the reviewed 37-case benchmark corpus, and successful post-merge `main` verification. The benchmark currently reports 15 TP, 0 FP, 16 TN, and 6 FN: 83.78% conventional classification accuracy, 100% precision, 71.43% recall, and 83.33% F1. These are controlled-corpus measurements, not universal real-world accuracy claims.
 
-The latest manual hardcoded-password case (PR #64) was correctly recorded as a false negative because the gate returned PASS for a case expected to BLOCK. The follow-up Python AST-based credential rule was added in PR #65 and is now part of `main`; PR #67 subsequently demonstrated the corrected behavior by returning BLOCK for the hardcoded-password change and PASS after the file was removed.
-
 The 37-case benchmark CSV remains unchanged by the OWASP reporting fix because this change corrects presentation/category mapping rather than changing the observed gate outcomes in the reviewed corpus. Any future benchmark case must still be deliberately reviewed and added to `docs/accuracy/benchmark-results.csv` rather than auto-recorded.
 
 ## Out of Scope
