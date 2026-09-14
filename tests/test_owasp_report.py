@@ -21,7 +21,7 @@ def write_sarif(root: Path, rule_id: str, message: str, properties: dict | None 
 def test_hardcoded_password_blocks_only_credential_categories(tmp_path: Path) -> None:
     write_sarif(
         tmp_path,
-        "securepr-python-hardcoded-credential",
+        "securepr-tooling.securepr-python-hardcoded-credential",
         "Hard-coded password detected",
     )
     output = render(tmp_path)
