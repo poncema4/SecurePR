@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [main]
 
+# One workflow job keeps the PR check surface simple. Individual security
+# checks run as steps so their logs remain available without creating a
+# separate job/check for every tool.
 concurrency:
   group: securepr-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
@@ -33,6 +36,7 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           path: .securepr-tooling
           sparse-checkout: |
+            scripts/check_python_version.py
             scripts/accuracy_report.py
             scripts/accuracy_metrics.py
             scripts/repository_profile.py
@@ -44,6 +48,13 @@ jobs:
         uses: actions/setup-python@v7
         with:
           python-version: "3.12"
+          cache: pip
+
+      - name: Python runtime policy
+        id: python-runtime
+        if: hashFiles('requirements.txt') != '' || hashFiles('pyproject.toml') != '' || hashFiles('.python-version') != ''
+        continue-on-error: true
+        run: python .securepr-tooling/scripts/check_python_version.py
 
       - name: Detect repository profile
         id: profile
@@ -59,7 +70,9 @@ jobs:
         id: python-tests
         if: hashFiles('requirements.txt') != '' && hashFiles('tests/**/*.py') != ''
         continue-on-error: true
-        run: python -m pytest -q
+        run: |
+          python -m pytest -q
+          python -m compileall -q app security tests scripts
 
       - name: JavaScript or TypeScript tests
         id: node-tests
@@ -126,13 +139,15 @@ jobs:
           category: /language:multi
           output: codeql-results
 
-      - name: Normalize SAST findings
+      - name: Build consolidated finding evidence
         id: finding-summary
         if: always()
         continue-on-error: true
         run: |
           python .securepr-tooling/scripts/summarize_sarif.py .
-          if [[ -f securepr-findings.md ]]; then cat securepr-findings.md >> "$GITHUB_STEP_SUMMARY"; fi
+          if [[ -f securepr-findings.md ]]; then
+            cat securepr-findings.md >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Accuracy status
         id: accuracy
@@ -143,67 +158,220 @@ jobs:
           cat securepr-accuracy.md >> "$GITHUB_STEP_SUMMARY"
 
       - name: Publish SecurePR result
+        id: result
         if: always()
         env:
-          PROFILE: ${{ steps.profile.outcome }}
-          CODEQL_LANGUAGES: ${{ steps.profile.outputs.codeql_languages }}
-          UNSUPPORTED_EXTENSIONS: ${{ steps.profile.outputs.unsupported_extensions }}
-          PYTHON_INSTALL: ${{ steps.python-install.outcome }}
-          PYTHON_TESTS: ${{ steps.python-tests.outcome }}
-          NODE_TESTS: ${{ steps.node-tests.outcome }}
-          DEPENDENCY: ${{ steps.dependency-audit.outcome }}
-          GITLEAKS: ${{ steps.gitleaks.outcome }}
-          SEMGREP: ${{ steps.semgrep.outcome }}
-          CODEQL_INIT: ${{ steps.codeql-init.outcome }}
-          CODEQL_ANALYZE: ${{ steps.codeql-analyze.outcome }}
-          FINDING_SUMMARY: ${{ steps.finding-summary.outcome }}
-          ACCURACY: ${{ steps.accuracy.outcome }}
+          PYTHON_RUNTIME_RESULT: ${{ steps.python-runtime.outcome }}
+          PROFILE_RESULT: ${{ steps.profile.outcome }}
+          INSTALL_RESULT: ${{ steps.python-install.outcome }}
+          TEST_RESULT: ${{ steps.python-tests.outcome }}
+          NODE_TEST_RESULT: ${{ steps.node-tests.outcome }}
+          GITLEAKS_RESULT: ${{ steps.gitleaks.outcome }}
+          SEMGREP_RESULT: ${{ steps.semgrep.outcome }}
+          DEPENDENCY_RESULT: ${{ steps.dependency-audit.outcome }}
+          CODEQL_INIT_RESULT: ${{ steps.codeql-init.outcome }}
+          CODEQL_ANALYZE_RESULT: ${{ steps.codeql-analyze.outcome }}
+          FINDING_SUMMARY_RESULT: ${{ steps.finding-summary.outcome }}
+          ACCURACY_RESULT: ${{ steps.accuracy.outcome }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        shell: bash
         run: |
-          blocking=0
-          for value in "$PROFILE" "$PYTHON_INSTALL" "$PYTHON_TESTS" "$NODE_TESTS" "$DEPENDENCY" "$GITLEAKS" "$SEMGREP" "$CODEQL_INIT" "$CODEQL_ANALYZE" "$FINDING_SUMMARY"; do
-            if [[ "$value" == "failure" ]]; then blocking=1; fi
-          done
-          if [[ "$ACCURACY" == "failure" ]]; then blocking=1; fi
+          set +e
 
-          if [[ "$blocking" -eq 0 ]]; then
-            echo "## 🟢 SecurePR: PASS" >> "$GITHUB_STEP_SUMMARY"
-            echo "All applicable automated SecurePR controls passed. Human review is always recommended before merge." >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "## 🔴 SecurePR: BLOCK" >> "$GITHUB_STEP_SUMMARY"
-            echo "One or more required SecurePR controls failed. Review the tool output, remediate the finding, and rerun the gate. Human review is always recommended." >> "$GITHUB_STEP_SUMMARY"
+          result() {
+            if [[ "$1" == "success" || "$1" == "skipped" ]]; then
+              echo "🟢 PASS"
+            else
+              echo "🔴 BLOCK"
+            fi
+          }
+
+          status_word() {
+            case "$1" in
+              success) echo "PASS" ;;
+              skipped) echo "N/A" ;;
+              *) echo "BLOCK" ;;
+            esac
+          }
+
+          overall="PASS"
+          for value in \
+            "$PYTHON_RUNTIME_RESULT" \
+            "$PROFILE_RESULT" \
+            "$INSTALL_RESULT" \
+            "$TEST_RESULT" \
+            "$NODE_TEST_RESULT" \
+            "$GITLEAKS_RESULT" \
+            "$SEMGREP_RESULT" \
+            "$DEPENDENCY_RESULT" \
+            "$CODEQL_INIT_RESULT" \
+            "$CODEQL_ANALYZE_RESULT" \
+            "$FINDING_SUMMARY_RESULT"; do
+            if [[ "$value" == "failure" ]]; then
+              overall="BLOCK"
+            fi
+          done
+
+          if [[ "$ACCURACY_RESULT" == "failure" ]]; then
+            overall="BLOCK"
           fi
 
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "### Repository Coverage" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Profile: ${PROFILE:-not available}" >> "$GITHUB_STEP_SUMMARY"
-          echo "- CodeQL languages: ${CODEQL_LANGUAGES:-none detected}" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Unsupported-by-CodeQL extensions: ${UNSUPPORTED_EXTENSIONS:-none detected}" >> "$GITHUB_STEP_SUMMARY"
+          if [[ "$overall" == "PASS" ]]; then
+            echo "## 🟢 SecurePR: PASS" >> "$GITHUB_STEP_SUMMARY"
+            echo "All required SecurePR controls completed successfully. No blocking result was reported by the configured checks. Human review is still required before merge." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "## 🔴 SecurePR: BLOCK" >> "$GITHUB_STEP_SUMMARY"
+            echo "One or more required SecurePR controls did not pass. The PR should remain unmerged until the blocking result is reviewed and the gate passes again." >> "$GITHUB_STEP_SUMMARY"
+          fi
 
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "### Check Results" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Check | Result |" >> "$GITHUB_STEP_SUMMARY"
-          echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Repository profile | ${PROFILE:-not applicable} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Python dependency installation | ${PYTHON_INSTALL:-not applicable} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Python project tests | ${PYTHON_TESTS:-not applicable} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| JavaScript/TypeScript tests | ${NODE_TESTS:-not applicable} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Dependency audit | ${DEPENDENCY:-not applicable} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Secret detection | ${GITLEAKS:-not applicable} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Semgrep SAST | ${SEMGREP:-not applicable} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| CodeQL | ${CODEQL_ANALYZE:-not applicable} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Normalized findings | ${FINDING_SUMMARY:-not applicable} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Accuracy status | ${ACCURACY:-not applicable} |" >> "$GITHUB_STEP_SUMMARY"
-
           echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Check | Result | What it checks | Why it matters |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Python runtime policy | $(result "$PYTHON_RUNTIME_RESULT") | Supported Python runtime declaration | Unsupported runtimes may fall outside tested/security-supported versions |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Repository profile | $(result "$PROFILE_RESULT") | Detects applicable languages and dependency manifests for the gate | Prevents the gate from silently assuming one language or dependency ecosystem |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Dependency install | $(result "$INSTALL_RESULT") | Reproduces declared Python dependencies when applicable | Downstream tests and audits need a reproducible dependency set |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Python project tests | $(result "$TEST_RESULT") | Project tests plus Python compilation when applicable | Detects broken security behavior and invalid Python code |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| JavaScript/TypeScript tests | $(result "$NODE_TEST_RESULT") | npm install/ci, project tests, and typecheck when applicable | Detects broken application behavior in JS/TS repositories |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Secret detection | $(result "$GITLEAKS_RESULT") | Committed credentials, API keys, tokens, passwords, and secret material | Prevents accidental exposure of credentials in source/history |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Semgrep SAST | $(result "$SEMGREP_RESULT") | Security patterns plus SecurePR high-confidence rules | Finds unsafe source constructs and project-specific high-confidence issues |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Dependency audit | $(result "$DEPENDENCY_RESULT") | Known vulnerabilities in supported Python/npm dependency manifests | Vulnerable third-party packages can compromise otherwise safe application code |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| CodeQL | $(result "$CODEQL_ANALYZE_RESULT") | Semantic security analysis for detected CodeQL-supported languages | Finds deeper data-flow and source-level vulnerabilities beyond simple patterns |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Security finding evidence | $(result "$FINDING_SUMMARY_RESULT") | Consolidates SARIF findings from applicable SAST tools | Reduces duplicate tool noise while preserving distinct findings |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Accuracy status | $(result "$ACCURACY_RESULT") | Reports measured TP/FP/TN/FN and derived metrics when labeled data exists | Makes detection quality measurable instead of claiming unsupported accuracy |" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+
           echo "### Fixes to make this PASS" >> "$GITHUB_STEP_SUMMARY"
-          if [[ "$blocking" -eq 0 ]]; then
-            echo "No blocking fixes are required for this run. Human review is always recommended, including review of security design, business logic, authorization intent, configuration, and tool coverage." >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "Review each failed control's native Actions output. Correct the underlying issue rather than suppressing a finding without evidence. Then push the remediation and rerun SecurePR. Human review is always recommended after remediation." >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+
+          blockers=0
+
+          if [[ "$PYTHON_RUNTIME_RESULT" == "failure" ]]; then
+            blockers=$((blockers + 1))
+            echo "#### 🔴 Python runtime policy — BLOCK" >> "$GITHUB_STEP_SUMMARY"
+            echo "**Why it failed:** The repository declares or resolves a Python runtime below SecurePR's supported minimum." >> "$GITHUB_STEP_SUMMARY"
+            echo "**Why it matters:** Unsupported runtimes may no longer receive security fixes or may fall outside the project's tested environment." >> "$GITHUB_STEP_SUMMARY"
+            echo "**What to fix:** Update `.python-version` or the affected runtime declaration to Python 3.11 or newer, then push the change." >> "$GITHUB_STEP_SUMMARY"
+            echo "**Expected result:** The runtime policy check reports PASS." >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          if [[ "$INSTALL_RESULT" == "failure" ]]; then
+            blockers=$((blockers + 1))
+            echo "#### 🔴 Dependency installation — BLOCK" >> "$GITHUB_STEP_SUMMARY"
+            echo "**Why it failed:** The declared project dependencies could not be installed successfully in CI." >> "$GITHUB_STEP_SUMMARY"
+            echo "**Why it matters:** The application and downstream security checks cannot be trusted if the declared dependency set cannot be reproduced." >> "$GITHUB_STEP_SUMMARY"
+            echo "**What to fix:** Review the installation error, correct invalid package names or version constraints, and keep the dependency set compatible with the supported runtime." >> "$GITHUB_STEP_SUMMARY"
+            echo "**Expected result:** CI installs the complete dependency set successfully." >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          if [[ "$TEST_RESULT" == "failure" ]]; then
+            blockers=$((blockers + 1))
+            echo "#### 🔴 Python project tests — BLOCK" >> "$GITHUB_STEP_SUMMARY"
+            echo "**Why it failed:** One or more automated tests or the Python compilation check did not pass." >> "$GITHUB_STEP_SUMMARY"
+            echo "**Why it matters:** The change may break expected security behavior or contain invalid Python code." >> "$GITHUB_STEP_SUMMARY"
+            echo "**What to fix:** Open the Python project tests step, identify the failing test or compilation error, correct the affected code or test expectation, and push the fix." >> "$GITHUB_STEP_SUMMARY"
+            echo "**Expected result:** The project test and compilation checks complete successfully." >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          if [[ "$NODE_TEST_RESULT" == "failure" ]]; then
+            blockers=$((blockers + 1))
+            echo "#### 🔴 JavaScript/TypeScript tests — BLOCK" >> "$GITHUB_STEP_SUMMARY"
+            echo "**Why it failed:** npm installation, project tests, or type checking did not pass." >> "$GITHUB_STEP_SUMMARY"
+            echo "**Why it matters:** The change may break application behavior or introduce type-level defects." >> "$GITHUB_STEP_SUMMARY"
+            echo "**What to fix:** Review the Node test step, correct the failing test/typecheck/install issue, and rerun the gate." >> "$GITHUB_STEP_SUMMARY"
+            echo "**Expected result:** Applicable JS/TS validation completes successfully." >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          if [[ "$GITLEAKS_RESULT" == "failure" ]]; then
+            blockers=$((blockers + 1))
+            echo "#### 🔴 Secret detection — BLOCK" >> "$GITHUB_STEP_SUMMARY"
+            echo "**Why it failed:** Gitleaks detected a value matching a configured secret or credential pattern in the repository or relevant PR history." >> "$GITHUB_STEP_SUMMARY"
+            echo "**Why it matters:** A committed real credential can allow unauthorized access and can remain exposed in repository history even after the visible line is removed." >> "$GITHUB_STEP_SUMMARY"
+            echo "**What to fix:** Remove the credential from the PR and relevant history, rotate any real exposed credential immediately, and replace committed secrets with environment variables or an approved secret-management mechanism. Do not merely rename the variable or suppress the finding." >> "$GITHUB_STEP_SUMMARY"
+            echo "**Expected result:** Gitleaks reports no blocking secret finding." >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          if [[ "$SEMGREP_RESULT" == "failure" ]]; then
+            blockers=$((blockers + 1))
+            echo "#### 🔴 Semgrep SAST — BLOCK" >> "$GITHUB_STEP_SUMMARY"
+            echo "**Why it failed:** Semgrep reported a source-code security finding or the SAST scan could not complete successfully." >> "$GITHUB_STEP_SUMMARY"
+            echo "**Why it matters:** The reported pattern may represent an exploitable unsafe coding practice or a scan failure that leaves the change unverified." >> "$GITHUB_STEP_SUMMARY"
+            echo "**What to fix:** Inspect the reported rule and source line, then remove or safely redesign the vulnerable pattern. Only suppress a finding when it is demonstrably a false positive and project policy permits suppression." >> "$GITHUB_STEP_SUMMARY"
+            echo "**Expected result:** Semgrep completes without a blocking finding." >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          if [[ "$DEPENDENCY_RESULT" == "failure" ]]; then
+            blockers=$((blockers + 1))
+            echo "#### 🔴 Dependency audit — BLOCK" >> "$GITHUB_STEP_SUMMARY"
+            echo "**Why it failed:** A supported dependency audit identified a known vulnerability or could not complete." >> "$GITHUB_STEP_SUMMARY"
+            echo "**Why it matters:** A vulnerable dependency can introduce security risk even when application source code appears safe." >> "$GITHUB_STEP_SUMMARY"
+            echo "**What to fix:** Identify the affected package and advisory in the audit output, then upgrade to a non-vulnerable compatible version or replace the dependency." >> "$GITHUB_STEP_SUMMARY"
+            echo "**Expected result:** The applicable dependency audit reports a clean dependency set." >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          if [[ "$CODEQL_INIT_RESULT" == "failure" || "$CODEQL_ANALYZE_RESULT" == "failure" ]]; then
+            blockers=$((blockers + 1))
+            echo "#### 🔴 CodeQL — BLOCK" >> "$GITHUB_STEP_SUMMARY"
+            echo "**Why it failed:** CodeQL initialization or analysis did not complete successfully. A successful analysis run is required when CodeQL coverage is applicable." >> "$GITHUB_STEP_SUMMARY"
+            echo "**Why it matters:** An incomplete semantic analysis means this control did not provide its intended coverage for the change." >> "$GITHUB_STEP_SUMMARY"
+            echo "**What to fix:** Open the CodeQL steps and correct the reported configuration, build, or analysis problem. If CodeQL reports a vulnerability finding, review the data flow and remediate the source code rather than disabling the analysis." >> "$GITHUB_STEP_SUMMARY"
+            echo "**Expected result:** CodeQL initializes and completes analysis successfully." >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          if [[ "$FINDING_SUMMARY_RESULT" == "failure" ]]; then
+            blockers=$((blockers + 1))
+            echo "#### 🔴 Security finding evidence — BLOCK" >> "$GITHUB_STEP_SUMMARY"
+            echo "**Why it failed:** The consolidated SARIF evidence contained one or more security findings, or the evidence-generation step could not complete." >> "$GITHUB_STEP_SUMMARY"
+            echo "**Why it matters:** A finding must be reviewed and remediated before the PR can pass the security gate." >> "$GITHUB_STEP_SUMMARY"
+            echo "**What to fix:** Review the consolidated findings above and the native Semgrep/CodeQL output, fix the underlying issue, and rerun the gate. If a finding is a genuine false positive, document and evaluate that case against the Phase 4 accuracy methodology rather than silently suppressing it." >> "$GITHUB_STEP_SUMMARY"
+            echo "**Expected result:** No blocking security finding remains." >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          if [[ "$ACCURACY_RESULT" == "failure" ]]; then
+            blockers=$((blockers + 1))
+            echo "#### 🔴 Accuracy status — BLOCK" >> "$GITHUB_STEP_SUMMARY"
+            echo "**Why it failed:** The accuracy evidence could not be evaluated successfully." >> "$GITHUB_STEP_SUMMARY"
+            echo "**Why it matters:** SecurePR must not claim detection quality from incomplete or invalid measurement data." >> "$GITHUB_STEP_SUMMARY"
+            echo "**What to fix:** Correct the benchmark CSV or accuracy calculation failure and rerun the gate." >> "$GITHUB_STEP_SUMMARY"
+            echo "**Expected result:** The accuracy calculation completes and reports the current labeled benchmark state." >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          if [[ "$blockers" -eq 0 ]]; then
+            echo "**No blocking fixes are required for this run.** All applicable controls passed." >> "$GITHUB_STEP_SUMMARY"
           fi
 
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "### Human review and accuracy boundary" >> "$GITHUB_STEP_SUMMARY"
-          echo "SecurePR provides automated security evidence, not a guarantee that a repository is vulnerability-free. Human review is always recommended. Automated analysis can produce false positives and false negatives, especially for business logic, runtime behavior, configuration, architecture, and unsupported language/tool coverage." >> "$GITHUB_STEP_SUMMARY"
+          echo "### Remediation" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          if [[ "$overall" == "PASS" ]]; then
+            echo "No automated remediation is performed. Continue normal human review. If a future finding appears, fix the PR, push the change, and allow SecurePR to re-run." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "SecurePR does not automatically edit source code, rotate credentials, or merge the PR. Review the blocking control above, apply the fix in the PR, push the change, and let SecurePR run again. False-positive decisions and code changes remain under developer review." >> "$GITHUB_STEP_SUMMARY"
+          fi
 
-          if [[ "$blocking" -ne 0 ]]; then exit 1; fi
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "### Accuracy" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Accuracy is measured from labeled benchmark cases, not inferred from whether this workflow happened to pass. For labeled cases: TP = expected BLOCK and actual BLOCK; FP = expected PASS and actual BLOCK; TN = expected PASS and actual PASS; FN = expected BLOCK and actual PASS." >> "$GITHUB_STEP_SUMMARY"
+          echo "Precision = TP / (TP + FP). Recall = TP / (TP + FN). F1 = 2 × Precision × Recall / (Precision + Recall)." >> "$GITHUB_STEP_SUMMARY"
+          echo "The current accuracy report is the authoritative measurement for the labeled benchmark corpus. Until labeled cases exist, SecurePR reports that the benchmark is pending rather than inventing a percentage." >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "### Human review" >> "$GITHUB_STEP_SUMMARY"
+          echo "Human review is always recommended. A PASS is not proof that the repository is vulnerability-free, and a BLOCK may require developer/security review to determine whether a finding is real or a measured false positive." >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "[Open the full Actions run]($RUN_URL)" >> "$GITHUB_STEP_SUMMARY"
+
+          if [[ "$overall" != "PASS" ]]; then
+            exit 1
+          fi
