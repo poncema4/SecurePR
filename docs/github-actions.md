@@ -3,51 +3,96 @@
 ## Purpose
 SecurePR uses GitHub Actions to run automated security controls for pull requests targeting `main` and for post-merge `main` verification.
 
-The authoritative entry workflow is `.github/workflows/security.yml`. It calls `.github/workflows/reusable-security.yml`, which contains the reusable security-gate implementation.
+The authoritative workflow in SecurePR is `.github/workflows/security.yml`. The reusable implementation is `.github/workflows/reusable-security.yml` and can be called by other repositories you control.
 
 ## One-job architecture
 
 The SecurePR repository keeps one job named `SecurePR Security Gate`. Individual tools run as steps inside that job so the PR has one authoritative required gate rather than many required tool checks.
 
-The reusable implementation includes repository profiling, applicable project checks, Gitleaks, Semgrep, dependency auditing, CodeQL, normalized SARIF finding aggregation, per-run accuracy status, and final PASS/BLOCK reporting.
+The gate includes repository profiling, applicable project checks, Gitleaks, Semgrep, dependency auditing, CodeQL, SARIF security-finding evaluation, accuracy reporting, and final PASS/BLOCK reporting.
 
-## SecurePR versus CodeQL
+## SecurePR versus security engines
 
-`SecurePR Security Gate` is the project's harness and policy layer. CodeQL is one analysis engine inside it.
+`SecurePR Security Gate` is the **harness, orchestration, policy, aggregation, and reporting layer**. It does not replace specialist security engines.
 
-CodeQL performs semantic source-code security analysis for supported languages and uploads results to GitHub Code Scanning. Code Scanning is an additional reporting surface, not a second SecurePR job.
+- **CodeQL** performs semantic source-code analysis for supported languages.
+- **Semgrep** performs complementary rule-based SAST and runs SecurePR-specific high-confidence rules.
+- **Gitleaks** performs secret and credential detection.
+- **Dependency auditors** check supported dependency manifests for known vulnerabilities.
+- **Project tests** validate application behavior and security properties that static analysis cannot prove.
+- **SecurePR** combines those signals, applies the gate policy, maps them to the OWASP Top 10:2025 coverage framework, and publishes one PASS/BLOCK result.
 
-SecurePR combines CodeQL with Semgrep, Gitleaks, dependency audits, project tests, repository profiling, and its own policy rules.
+## OWASP Top 10:2025
+
+SecurePR does not contain a separate scanner for each OWASP category. OWASP Top 10:2025 is a coverage framework used to organize the evidence produced by the underlying engines and project controls.
+
+For example, injection-related coverage comes primarily from CodeQL, Semgrep, and project tests; cryptographic-failure coverage comes from CodeQL and Semgrep; supply-chain coverage includes dependency auditing; and insecure-design coverage necessarily includes human architecture and business-logic review.
+
+A category row is `PASS` when its mapped automated controls pass and `BLOCK` when one of those mapped controls blocks. A category `PASS` is not proof that the entire category is secure.
 
 ## Reusable workflow
 
 Other repositories can call the reusable workflow from this repository without installing a GitHub Marketplace product. The called workflow checks out the target repository, checks out the SecurePR tooling at the requested ref, profiles the target repository, runs applicable controls, reports the current accuracy-benchmark status, and publishes the same PASS/BLOCK gate.
 
-The SecurePR repository itself calls the same reusable workflow using the Phase 4 PR commit for its tooling, so the PR tests the implementation under review rather than an older `main` copy.
+A target repository can add:
 
-The MVP is intentionally limited to the user's own repositories. Public Marketplace packaging is outside Phase 4.
+```yaml
+name: SecurePR Security Gate
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  securepr:
+    uses: poncema4/SecurePR/.github/workflows/reusable-security.yml@main
+```
+
+For stronger reproducibility, pin the reusable workflow to a reviewed SecurePR commit SHA instead of tracking `main`.
+
+The SecurePR repository itself checks out the PR head SHA for its tooling so changes to the gate are tested before they are merged. Other repositories normally use `main` or a pinned reviewed ref.
+
+The intended initial targets are SecurePR, CookieGuard, and NetDefender. Applicability is repository-specific: languages, dependency manifests, tests, and available security evidence determine which controls actually run.
 
 ## Accuracy status on every PR
 
 Every PR includes an accuracy section in the Actions summary.
 
 - Before the final benchmark is executed: `Benchmark pending — no accuracy percentage is claimed.`
-- After the benchmark results are recorded: the latest TP, FP, TN, precision, recall, and F1 are reported.
+- After labeled benchmark results are recorded: the latest TP, FP, TN, precision, recall, and F1 are reported.
 
-This status is informational and does not substitute for the final controlled benchmark. It prevents SecurePR from inventing an accuracy percentage while still making the current measurement state visible on every PR.
+This status is informational and does not substitute for the controlled benchmark. It prevents SecurePR from inventing an accuracy percentage while making the current measurement state visible.
+
+The source ledger is `docs/accuracy/benchmark-results.csv`.
 
 ## PASS/BLOCK
 
 There are only two gate outcomes:
 
-- **PASS:** all configured blocking controls pass and no blocking normalized finding remains.
-- **BLOCK:** at least one configured blocking control fails or a blocking normalized finding remains.
+- **PASS:** all configured blocking controls pass and no blocking security finding remains.
+- **BLOCK:** at least one configured blocking control fails or a blocking security finding remains.
+
+The user-facing Actions summary is ordered as:
+
+1. `SecurePR: PASS` or `SecurePR: BLOCK`
+2. Check Results
+3. Current gate result explanation
+4. OWASP Top 10:2025 Coverage
+5. Fixes to make this PASS
+6. Remediation
+7. Accuracy
+8. Human review
+9. Full Actions run link
 
 Every outcome states that human review is always recommended. SecurePR never automatically edits source code, rotates credentials, dismisses findings, or merges a PR.
 
-## Finding aggregation
+## Evidence
 
-Semgrep and CodeQL produce SARIF results. SecurePR normalizes identical findings using location, rule, and message so the summary can present one meaningful issue rather than multiple copies. Tool names remain visible in the normalized summary. Distinct findings at the same file and line are not collapsed merely because they share a location.
+Detailed SARIF and diagnostic outputs are retained as an Actions artifact named `securepr-evidence`. The artifact is evidence, not a separate gate. Gitleaks also produces its own `gitleaks-results.sarif` artifact through the Gitleaks action.
+
+The user-facing summary intentionally stays concise; detailed tool output remains available from the individual Actions steps and evidence artifacts.
 
 ## Pull request versus main
 
@@ -65,29 +110,18 @@ PR → SecurePR PASS → human review → merge
                               main independently verified
 ```
 
-Final Phase 4 completion requires the post-merge `main` run to pass.
+## Development and testing workflow
 
-## Development workflow
+Use one branch and one consolidated PR for a related implementation change. If the gate blocks, fix the issue on the same branch and rerun the same PR.
 
-For Phase 4 and later, use one feature branch for the entire phase and one consolidated PR into `main`.
+For final verification:
 
-```text
-feature branch
-    ↓
-implement entire phase
-    ↓
-local validation
-    ↓
-documentation audit
-    ↓
-one consolidated PR
-    ↓
-SecurePR PASS/BLOCK
-    ↓
-PASS → human review → merge
-BLOCK → fix same branch/PR → rerun
-    ↓
-post-merge main verification
-```
+1. Run the local Python tests and compilation checks.
+2. Open/update the consolidated PR.
+3. Confirm `SecurePR Security Gate` passes.
+4. Inspect the Actions summary, including Check Results and the OWASP coverage table.
+5. Inspect `securepr-evidence` when detailed SARIF or diagnostics are needed.
+6. After merge, confirm the independent `main` workflow passes.
+7. Run the controlled accuracy benchmark separately and record actual expected/actual classifications in `docs/accuracy/benchmark-results.csv`.
 
-Do not create multiple PRs for one phase.
+Do not claim benchmark accuracy from a normal passing PR. Do not populate benchmark `actual` values unless the corresponding case was actually executed through the gate.
