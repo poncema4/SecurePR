@@ -81,6 +81,7 @@ name: SecurePR Security Gate
 on:
   pull_request:
     branches: [main]
+    types: [opened, synchronize, reopened, labeled]
   push:
     branches: [main]
 
@@ -102,7 +103,7 @@ To use a real PR as a labeled benchmark case, a trusted reviewer can add exactly
 - `securepr-expected-pass`
 - `securepr-expected-block`
 
-The Actions summary then reports:
+The pull-request workflow is configured to run again when the expected-outcome label is added. The Actions summary then reports:
 
 - expected result for the current PR
 - actual SecurePR result for the current PR
@@ -125,6 +126,7 @@ This is more accurate than assigning an arbitrary expected result to every PR. A
 2. Add the reusable workflow to the target repository.
 3. Open a normal PR and verify `SecurePR Security Gate` runs.
 4. For a controlled benchmark, have a trusted reviewer add the expected-outcome label.
-5. Inspect the PR Actions summary for expected vs. actual and cumulative accuracy.
+5. Confirm the label-triggered run reports expected vs. actual and cumulative accuracy.
 6. If the gate blocks, fix the same PR branch and rerun it.
 7. After merge, verify the push-to-main run independently.
+8. Add verified benchmark cases to the CSV through a reviewed change.
