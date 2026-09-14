@@ -32,7 +32,7 @@ SecurePR provides the reusable harness around those tools so repositories can us
 - Gitleaks secret detection.
 - Supported dependency auditing with `pip-audit` and `npm audit`.
 - SARIF finding aggregation and evidence artifacts.
-- OWASP Top 10:2025 coverage mapping.
+- OWASP Top 10:2025 coverage mapping based on category-specific finding evidence.
 - `PASS` / `BLOCK` reporting.
 - Labeled expected-versus-actual accuracy measurement.
 - Cumulative benchmark metrics from `docs/accuracy/benchmark-results.csv`.
@@ -80,7 +80,8 @@ SecurePR does not use a single prompt as its security rule book. The policy is i
 | Target repository tests | Application-specific behavior/security checks |
 | `scripts/repository_profile.py` | Determines applicable languages and dependency ecosystems |
 | `scripts/summarize_sarif.py` | Aggregates SARIF security evidence |
-| `scripts/accuracy_report.py` | Reports controlled benchmark behavior |
+| `scripts/owasp_report.py` | Maps SARIF findings to the relevant OWASP Top 10:2025 categories |
+| `scripts/accuracy_report.py` | Reports controlled benchmark behavior and includes the current OWASP coverage table |
 
 The detailed control mapping is documented in `docs/security-checks.md`.
 
@@ -108,11 +109,13 @@ SecurePR/
 │   ├── accuracy_metrics.py
 │   ├── accuracy_report.py
 │   ├── check_python_version.py
+│   ├── owasp_report.py
 │   ├── repository_profile.py
 │   └── summarize_sarif.py
 ├── security/
 ├── tests/
-│   └── security/
+│   ├── security/
+│   └── test_owasp_report.py
 ├── docs/
 │   ├── accuracy/
 │   │   ├── benchmark-results.csv
@@ -150,10 +153,21 @@ For a controlled benchmark, a trusted reviewer adds `securepr-expected-pass` or 
 
 A normal PR is not automatically counted as a TP, FP, TN, or FN because its expected security outcome is unknown. The benchmark CSV is a reviewed evidence ledger and is not silently changed by every PR.
 
+## OWASP Top 10:2025 Result Semantics
+SecurePR's overall gate and its OWASP coverage table answer different questions.
+
+- **Overall SecurePR:** `BLOCK` when any required gate control fails or a blocking security finding remains; otherwise `PASS`.
+- **OWASP category:** `BLOCK` only when at least one SARIF finding is explicitly mapped to that category using an OWASP tag, an OWASP-mapped CWE, or a SecurePR custom rule. Otherwise the category is `PASS` for that run.
+- A Semgrep or CodeQL failure does **not** automatically turn all ten OWASP rows into `BLOCK`.
+- Unmapped SARIF findings still contribute to the overall SecurePR gate, but are not assigned to an OWASP category without sufficient evidence.
+- A category `PASS` means no mapped automated finding was reported for that run; it does **not** prove that the entire OWASP category is secure.
+
+This distinction prevents a single hardcoded-credential or injection finding from incorrectly presenting as ten separate OWASP vulnerabilities. OWASP Top 10:2025 remains a coverage framework rather than ten independent scanners.
+
 ## Security Scope and Limitations
 SecurePR is a reusable DevSecOps security harness, not a guarantee that a repository is vulnerability-free. Static analysis can miss issues and produce false positives; tests cover only the behavior they exercise; dependency checks depend on supported ecosystems; and CodeQL analysis depends on supported languages.
 
-OWASP Top 10:2025 is used as a coverage framework. SecurePR maps applicable automated controls to the categories; it does not claim a separate complete OWASP scanner. A passing mapped control does not prove the entire category is secure, and context-dependent risks such as insecure design and business logic require human review.
+OWASP Top 10:2025 is used as a coverage framework. SecurePR maps applicable automated findings to the categories; it does not claim a separate complete OWASP scanner. A passing mapped category does not prove the entire category is secure, and context-dependent risks such as insecure design and business logic require human review.
 
 The current MVP is intended for repositories that the user owns or is authorized to assess. It is not currently designed to provide a hosted multi-user service or automatically manage access to arbitrary third-party repositories.
 
@@ -164,7 +178,9 @@ The SecurePR MVP is **functionally complete as a reusable pull-request security 
 
 Final validation is based on controlled pull-request executions, the reviewed 37-case benchmark corpus, and successful post-merge `main` verification. The benchmark currently reports 15 TP, 0 FP, 16 TN, and 6 FN: 83.78% conventional classification accuracy, 100% precision, 71.43% recall, and 83.33% F1. These are controlled-corpus measurements, not universal real-world accuracy claims.
 
-The latest manual hardcoded-password case (PR #64) was correctly recorded as a false negative because the gate returned PASS for a case expected to BLOCK. The follow-up fix adds a Python AST-based high-confidence credential rule and is validated separately before merge.
+The latest manual hardcoded-password case (PR #64) was correctly recorded as a false negative because the gate returned PASS for a case expected to BLOCK. The follow-up Python AST-based credential rule was added in PR #65 and is now part of `main`; PR #67 subsequently demonstrated the corrected behavior by returning BLOCK for the hardcoded-password change and PASS after the file was removed.
+
+The 37-case benchmark CSV remains unchanged by the OWASP reporting fix because this change corrects presentation/category mapping rather than changing the observed gate outcomes in the reviewed corpus. Any future benchmark case must still be deliberately reviewed and added to `docs/accuracy/benchmark-results.csv` rather than auto-recorded.
 
 ## Out of Scope
 - Automatic vulnerability remediation.
