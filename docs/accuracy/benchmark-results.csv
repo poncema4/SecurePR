@@ -5,3 +5,23 @@ mock-003,injection-unsafe-eval,Dynamic eval execution detected by Semgrep,BLOCK,
 mock-004,credential-reference,Environment-variable name only with no literal secret,PASS,PASS,PR #19 / Actions run #118
 mock-005,injection-unsafe-eval,Controlled unsafe eval execution detected by Semgrep,BLOCK,BLOCK,PR #25 / Actions run #130
 mock-006,safe-change,Controlled documentation-only change with no security findings,PASS,PASS,PR #26 / Actions run #132
+mock-007,injection-unsafe-eval,Controlled eval injection fixture,BLOCK,BLOCK,PR #29 / Actions run #137
+mock-008,injection-code-execution,Controlled exec injection fixture,BLOCK,BLOCK,PR #30 / Actions run #139
+mock-009,transport-security,Unverified TLS request with verify=False,BLOCK,BLOCK,PR #31 / Actions run #141
+mock-010,hardcoded-credential,Hardcoded password assignment fixture,BLOCK,PASS,PR #32 / Actions run #143
+mock-011,privileged-identity,Privileged username assignment fixture,BLOCK,BLOCK,PR #33 / Actions run #145
+mock-012,secret-detection,GitHub token-shaped credential fixture,BLOCK,PASS,PR #34
+mock-013,secret-detection,Committed .env API-key-shaped secret fixture,BLOCK,BLOCK,PR #35
+mock-014,secret-detection,Private-key-shaped PEM fixture,BLOCK,BLOCK,PR #36 / Actions run #151
+mock-015,secret-detection,Canonical AWS example key expected to be benign,PASS,PASS,PR #37 / Actions run #153
+mock-016,command-injection,subprocess shell=True with controlled input,BLOCK,BLOCK,PR #38 / Actions run #155
+mock-017,credential-reference,Environment-backed API key reference with no literal secret,PASS,PASS,PR #39 / Actions run #157
+mock-018,credential-storage,Password hashing fixture,PASS,PASS,PR #40 / Actions run #159
+mock-019,sql-injection,Parameterized SQL query,PASS,PASS,PR #41 / Actions run #161
+mock-020,command-execution,Argument-vector subprocess invocation,PASS,PASS,PR #42 / Actions run #163
+mock-021,transport-security,Normal TLS verification,PASS,PASS,PR #43 / Actions run #165
+mock-022,identifier-generation,UUID generation,PASS,PASS,PR #44 / Actions run #167
+mock-023,benign-security-text,Security terminology without credential assignment,PASS,PASS,PR #45 / Actions run #169
+mock-024,insecure-design,Missing second-person approval business rule,BLOCK,PASS,PR #46 / Actions run #171
+mock-025,authorization,Missing ownership or role authorization check,BLOCK,PASS,PR #47 / Actions run #173
+mock-026,password-policy,Weak minimum password policy,BLOCK,PASS,PR #48 / Actions run #175
