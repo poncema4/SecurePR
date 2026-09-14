@@ -14,12 +14,12 @@ on:
         type: string
         default: main
       python-version:
-        description: Python version used by SecurePR tooling when Python analysis is applicable.
+        description: Python version used by SecurePR tooling.
         required: false
         type: string
         default: "3.12"
       run_project_tests:
-        description: Run detected project test commands when safely discoverable.
+        description: Run detected project tests when applicable.
         required: false
         type: boolean
         default: true
@@ -86,11 +86,7 @@ jobs:
         id: node-tests
         if: always() && inputs.run_project_tests && hashFiles('package.json') != ''
         run: |
-          if [[ -f package-lock.json ]]; then
-            npm ci --ignore-scripts
-          else
-            npm install --ignore-scripts
-          fi
+          if [[ -f package-lock.json ]]; then npm ci --ignore-scripts; else npm install --ignore-scripts; fi
           npm test --if-present
           npm run typecheck --if-present
 
@@ -99,18 +95,9 @@ jobs:
         if: always()
         run: |
           found=0
-          if [[ -f requirements.txt ]]; then
-            found=1
-            python -m pip install pip-audit
-            pip-audit -r requirements.txt
-          fi
-          if [[ -f package-lock.json ]]; then
-            found=1
-            npm audit --package-lock-only --audit-level=high
-          fi
-          if [[ "$found" -eq 0 ]]; then
-            echo "No currently supported dependency manifest was found; dependency audit is not applicable."
-          fi
+          if [[ -f requirements.txt ]]; then found=1; python -m pip install pip-audit; pip-audit -r requirements.txt; fi
+          if [[ -f package-lock.json ]]; then found=1; npm audit --package-lock-only --audit-level=high; fi
+          if [[ "$found" -eq 0 ]]; then echo "No currently supported dependency manifest was found; dependency audit is not applicable."; fi
 
       - name: Secret detection
         id: gitleaks
@@ -167,21 +154,8 @@ jobs:
         shell: bash
         run: |
           actual="PASS"
-          for value in \
-            "$RUNTIME" \
-            "$PROFILE" \
-            "$PYTHON_INSTALL" \
-            "$PYTHON_TESTS" \
-            "$NODE_TESTS" \
-            "$DEPENDENCY" \
-            "$GITLEAKS" \
-            "$SEMGREP" \
-            "$CODEQL_INIT" \
-            "$CODEQL_ANALYZE" \
-            "$FINDINGS"; do
-            if [[ "$value" == "failure" ]]; then
-              actual="BLOCK"
-            fi
+          for value in "$RUNTIME" "$PROFILE" "$PYTHON_INSTALL" "$PYTHON_TESTS" "$NODE_TESTS" "$DEPENDENCY" "$GITLEAKS" "$SEMGREP" "$CODEQL_INIT" "$CODEQL_ANALYZE" "$FINDINGS"; do
+            if [[ "$value" == "failure" ]]; then actual="BLOCK"; fi
           done
           echo "actual=$actual" >> "$GITHUB_OUTPUT"
 
@@ -208,54 +182,18 @@ jobs:
           CODEQL_INIT: ${{ steps.codeql-init.outcome }}
           CODEQL_ANALYZE: ${{ steps.codeql-analyze.outcome }}
           FINDINGS: ${{ steps.finding-summary.outcome }}
-          ACCURACY: ${{ steps.accuracy.outcome }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         shell: bash
         run: |
           set +e
-
-          result() {
-            if [[ "$1" == "success" || "$1" == "skipped" ]]; then
-              echo "PASS"
-            else
-              echo "BLOCK"
-            fi
-          }
-
+          result() { if [[ "$1" == "success" || "$1" == "skipped" ]]; then echo "🟢 PASS"; else echo "🔴 BLOCK"; fi; }
           overall="PASS"
-          for value in \
-            "$RUNTIME" \
-            "$PROFILE" \
-            "$PYTHON_INSTALL" \
-            "$PYTHON_TESTS" \
-            "$NODE_TESTS" \
-            "$DEPENDENCY" \
-            "$GITLEAKS" \
-            "$SEMGREP" \
-            "$CODEQL_INIT" \
-            "$CODEQL_ANALYZE" \
-            "$FINDINGS"; do
-            if [[ "$value" == "failure" ]]; then
-              overall="BLOCK"
-            fi
+          for value in "$RUNTIME" "$PROFILE" "$PYTHON_INSTALL" "$PYTHON_TESTS" "$NODE_TESTS" "$DEPENDENCY" "$GITLEAKS" "$SEMGREP" "$CODEQL_INIT" "$CODEQL_ANALYZE" "$FINDINGS"; do
+            if [[ "$value" == "failure" ]]; then overall="BLOCK"; fi
           done
-
-          control_result() {
-            local failed=0
-            for value in "$@"; do
-              if [[ "$value" == "failure" ]]; then failed=1; fi
-            done
-            if [[ "$failed" -eq 0 ]]; then echo "PASS"; else echo "BLOCK"; fi
-          }
-
+          control_result() { local failed=0; for value in "$@"; do if [[ "$value" == "failure" ]]; then failed=1; fi; done; if [[ "$failed" -eq 0 ]]; then echo "🟢 PASS"; else echo "🔴 BLOCK"; fi; }
           echo "overall=$overall" >> "$GITHUB_OUTPUT"
-
-          if [[ "$overall" == "PASS" ]]; then
-            echo "## SecurePR: PASS" >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "## SecurePR: BLOCK" >> "$GITHUB_STEP_SUMMARY"
-          fi
-
+          if [[ "$overall" == "PASS" ]]; then echo "## 🟢 SecurePR: PASS" >> "$GITHUB_STEP_SUMMARY"; else echo "## 🔴 SecurePR: BLOCK" >> "$GITHUB_STEP_SUMMARY"; fi
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "### Check Results" >> "$GITHUB_STEP_SUMMARY"
           echo "| Check | Result | What it checks |" >> "$GITHUB_STEP_SUMMARY"
@@ -270,14 +208,8 @@ jobs:
           echo "| Dependency audit | $(result "$DEPENDENCY") | Known vulnerabilities in supported Python/npm dependency manifests |" >> "$GITHUB_STEP_SUMMARY"
           echo "| CodeQL | $(result "$CODEQL_ANALYZE") | Semantic security analysis for detected CodeQL-supported languages |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Security findings | $(result "$FINDINGS") | Blocks when SARIF-producing security tools report findings |" >> "$GITHUB_STEP_SUMMARY"
-
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          if [[ "$overall" == "PASS" ]]; then
-            echo "All required SecurePR controls completed successfully. Human review is still recommended before merge." >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "One or more required SecurePR controls did not pass. Fix the blocking result on this same PR/branch and rerun the gate. Human review is always recommended." >> "$GITHUB_STEP_SUMMARY"
-          fi
-
+          if [[ "$overall" == "PASS" ]]; then echo "All required SecurePR controls completed successfully. Human review is still recommended before merge." >> "$GITHUB_STEP_SUMMARY"; else echo "One or more required SecurePR controls did not pass. Fix the blocking result on this same PR/branch and rerun the gate. Human review is always recommended." >> "$GITHUB_STEP_SUMMARY"; fi
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "### OWASP Top 10:2025 Coverage" >> "$GITHUB_STEP_SUMMARY"
           echo "The rows below are **coverage mappings**. PASS means the listed automated controls completed without a blocking result; BLOCK means at least one mapped control blocked. A PASS does not prove the entire OWASP category is secure." >> "$GITHUB_STEP_SUMMARY"
@@ -294,29 +226,20 @@ jobs:
           echo "| A08:2025 Software or Data Integrity Failures | $(control_result "$CODEQL_ANALYZE" "$DEPENDENCY" "$SEMGREP") | CodeQL, dependency audit, Semgrep | Integrity boundaries, unsafe deserialization, artifact/trusted-source and dependency risks where supported |" >> "$GITHUB_STEP_SUMMARY"
           echo "| A09:2025 Security Logging & Alerting Failures | $(control_result "$CODEQL_ANALYZE" "$SEMGREP") | CodeQL, Semgrep + human review | Detectable unsafe/missing logging and alerting patterns; operational coverage requires review |" >> "$GITHUB_STEP_SUMMARY"
           echo "| A10:2025 Mishandling of Exceptional Conditions | $(control_result "$CODEQL_ANALYZE" "$SEMGREP" "$PYTHON_TESTS" "$NODE_TESTS") | CodeQL, Semgrep, project tests | Error/exception handling, failing-open and related abnormal-condition patterns where supported |" >> "$GITHUB_STEP_SUMMARY"
-
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "### Fixes to make this PASS" >> "$GITHUB_STEP_SUMMARY"
-          if [[ "$overall" == "PASS" ]]; then
-            echo "**No blocking fixes are required for this run.** All applicable controls passed." >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "Review every failed control and its native Actions output. Remediate the underlying issue on this same PR/branch, then rerun SecurePR." >> "$GITHUB_STEP_SUMMARY"
-          fi
-
+          if [[ "$overall" == "PASS" ]]; then echo "**No blocking fixes are required for this run.** All applicable controls passed." >> "$GITHUB_STEP_SUMMARY"; else echo "Review every failed control and its native Actions output. Remediate the underlying issue on this same PR/branch, then rerun SecurePR." >> "$GITHUB_STEP_SUMMARY"; fi
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "### Remediation" >> "$GITHUB_STEP_SUMMARY"
           echo "SecurePR never auto-edits source, rotates credentials, or merges automatically. Apply remediation manually, rerun the gate, and continue human review." >> "$GITHUB_STEP_SUMMARY"
-
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "### Accuracy" >> "$GITHUB_STEP_SUMMARY"
           cat securepr-accuracy.md >> "$GITHUB_STEP_SUMMARY"
-
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "### Human review" >> "$GITHUB_STEP_SUMMARY"
           echo "Human review is always recommended. A PASS is not proof that the repository is vulnerability-free, and a BLOCK should be investigated with the native tool output and application context." >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "[Open the full Actions run]($RUN_URL)" >> "$GITHUB_STEP_SUMMARY"
-
           if [[ "$overall" != "PASS" ]]; then exit 1; fi
 
       - name: Preserve SecurePR evidence
