@@ -2,31 +2,46 @@
 
 ## Overview
 
-SecurePR evaluates pull-request changes using layered security controls. The gate is reusable across repositories you own or are authorized to assess.
+SecurePR is a reusable pull-request **security harness**. It evaluates pull-request changes through layered controls supplied by multiple security engines and the target repository, then applies a common policy to produce one `PASS` or `BLOCK` result.
 
-These requirements define automated coverage; they do not claim automation can prove every security property.
+These requirements define the automated coverage and gate behavior. They do not claim that automation can prove every security property.
 
 ## Core Requirements
 
 SecurePR shall:
 
-1. Detect selected security defects before merge.
-2. Detect exposed secrets and credential-like material.
-3. Analyze supported programming languages with applicable SAST tooling.
-4. Audit supported dependency ecosystems when a relevant manifest exists.
-5. Run applicable security and correctness tests.
-6. Analyze security-relevant CI/CD configuration where practical.
-7. Map implemented coverage to OWASP Top 10:2025 and secure-coding principles.
-8. Detect high-confidence hard-coded credentials and privileged identity values.
-9. Aggregate duplicate scanner findings without hiding distinct findings in detailed evidence.
-10. Produce exactly one overall `PASS` or `BLOCK` decision.
-11. Explain blocking results and remediation steps.
-12. Always recommend human review.
-13. Never automatically modify source code, rotate credentials, or merge a pull request.
-14. Report unsupported or unavailable analysis coverage instead of silently treating it as secure.
-15. Remain reusable without requiring GitHub Marketplace publication.
-16. Measure gate behavior with TP, FP, TN, precision, recall, and F1 from labeled cases.
-17. Report cumulative accuracy on every PR and, when a trusted expected-outcome label is present, report the current PR's expected-versus-actual classification immediately.
+1. Orchestrate repeatable pull-request security checks before merge.
+2. Use multiple complementary security engines rather than relying on one scanner.
+3. Detect exposed secrets and credential-like material through dedicated secret detection and applicable SAST controls.
+4. Analyze supported programming languages with applicable SAST tooling, including CodeQL and Semgrep.
+5. Audit supported dependency ecosystems when a relevant manifest exists.
+6. Run applicable project security and correctness tests.
+7. Analyze security-relevant CI/CD configuration where practical.
+8. Map implemented automated coverage to OWASP Top 10:2025 as a coverage framework.
+9. Enforce SecurePR-specific high-confidence Semgrep rules for selected credential, privileged-identity, dynamic-evaluation, and TLS patterns.
+10. Aggregate duplicate scanner findings without hiding distinct findings in detailed evidence.
+11. Produce exactly one overall `PASS` or `BLOCK` decision.
+12. Explain blocking results and remediation steps.
+13. Always recommend human review.
+14. Never automatically modify source code, rotate credentials, dismiss findings, or merge a pull request.
+15. Report unsupported or unavailable analysis coverage instead of silently treating it as secure.
+16. Remain reusable without requiring GitHub Marketplace publication.
+17. Measure gate behavior with TP, FP, TN, precision, recall, and F1 from labeled cases.
+18. Report cumulative benchmark status on every PR and, when a trusted expected-outcome label is present, report the current PR's expected-versus-actual classification immediately.
+
+## Rule Book / Policy Sources
+
+The SecurePR policy is layered rather than represented by one prompt:
+
+- `.github/workflows/security.yml` — authoritative orchestration and final PASS/BLOCK policy.
+- `.semgrep_securepr.yml` — SecurePR-specific Semgrep rules.
+- Semgrep `p/security-audit` — broader SAST rules.
+- CodeQL `security-extended` — semantic/data-flow security queries.
+- Gitleaks — secret-detection evidence.
+- `pip-audit` / `npm audit` — dependency vulnerability evidence when applicable.
+- Target repository tests — application-specific security/correctness evidence.
+- `repository_profile.py` — applicability and language/dependency detection.
+- `summarize_sarif.py` — scanner-evidence aggregation.
 
 ## OWASP Top 10:2025 Coverage Model
 
@@ -43,7 +58,7 @@ The coverage model includes A01 through A10:
 - A09 Security Logging & Alerting Failures
 - A10 Mishandling of Exceptional Conditions
 
-Context-dependent areas must remain human-review boundaries rather than being presented as completely automated.
+SecurePR maps the automated controls that actually run to these categories. OWASP is not a separate scanner, and a mapped PASS does not prove the complete category is secure.
 
 ## Language and Repository Requirements
 
@@ -73,8 +88,6 @@ A benchmark case requires a known expected result and an observed actual result.
 
 A trusted reviewer may label a real PR with `securepr-expected-pass` or `securepr-expected-block`. SecurePR then reports the current PR's expected result, actual gate result, and classification in the Actions summary.
 
-Normal PRs without an expected-outcome label are not counted as TP, FP, TN, or FN.
+The current reviewed benchmark contains 26 cases: 10 TP, 0 FP, 11 TN, and 5 FN. This produces 80.77% conventional classification accuracy, 100% precision, 66.67% recall, and 80.00% F1 for the controlled corpus.
 
-The permanent benchmark ledger is `docs/accuracy/benchmark-results.csv`. It is deliberately updated only after labeled cases are executed and verified; ordinary PRs must not silently mutate it.
-
-Measurements describe the labeled corpus and configuration, not universal real-world detection accuracy.
+Normal PRs without an expected-outcome label are not counted as TP, FP, TN, or FN. Measurements describe the labeled corpus and configuration, not universal real-world detection accuracy.
