@@ -67,7 +67,7 @@ The workflow initializes CodeQL only when `repository_profile.py` detects a supp
 
 ## Semgrep
 
-Semgrep runs both its `p/security-audit` configuration and `.semgrep_securepr.yml`. The custom SecurePR rules provide high-confidence checks for selected credential, privileged-identity, dynamic-evaluation, and Python TLS patterns.
+Semgrep runs both its `p/security-audit` configuration and `.semgrep_securepr.yml`. The custom SecurePR rules provide high-confidence checks for selected credential, privileged-identity, dynamic-evaluation, and Python TLS patterns. The hard-coded credential policy uses a raw-text regex rule for non-Python files and a Python AST-based assignment rule for Python files, closing the validated gap exposed by PR #64.
 
 ## Gitleaks
 
@@ -106,7 +106,7 @@ There is no third `REVIEW` state. Both outcomes state that human review is recom
 
 ## Accuracy
 
-The benchmark is a reviewed ground-truth corpus. The current 26-case corpus contains 10 TP, 0 FP, 11 TN, and 5 FN, producing 80.77% conventional classification accuracy, 100% precision, 66.67% recall, and 80.00% F1. These measurements describe the controlled corpus and configuration only.
+The benchmark is a reviewed ground-truth corpus. The current 37-case corpus contains 15 TP, 0 FP, 16 TN, and 6 FN, producing 83.78% conventional classification accuracy, 100% precision, 71.43% recall, and 83.33% F1. These measurements describe the controlled corpus and configuration only.
 
 ## Trust Boundaries
 
