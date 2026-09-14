@@ -1,0 +1,1 @@
+DEMO_TOKEN = "ghp_1234567890abcdefghijklmnopqrstuvwxyz123456"
