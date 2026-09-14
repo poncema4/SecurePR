@@ -25,3 +25,11 @@ mock-023,benign-security-text,Security terminology without credential assignment
 mock-024,insecure-design,Missing second-person approval business rule,BLOCK,PASS,PR #46 / Actions run #171
 mock-025,authorization,Missing ownership or role authorization check,BLOCK,PASS,PR #47 / Actions run #173
 mock-026,password-policy,Weak minimum password policy,BLOCK,PASS,PR #48 / Actions run #175
+mock-027,safe-change,Benign Python addition helper,PASS,PASS,PR #50 / Actions run #185
+mock-028,hardcoded-credential,Hardcoded password assignment fixture,BLOCK,BLOCK,PR #51 / Actions run #183
+mock-029,safe-change,Benign Python greeting helper,PASS,PASS,PR #52 / Actions run #188
+mock-030,command-injection,subprocess shell=True invocation,BLOCK,BLOCK,PR #53 / Actions run #189
+mock-031,safe-change,Benign Python arithmetic helper,PASS,PASS,PR #54 / Actions run #190
+mock-032,hardcoded-credential,Hardcoded password assignment fixture,BLOCK,BLOCK,PR #55 / Actions run #191
+mock-033,safe-change,Benign Python square helper,PASS,PASS,PR #56 / Actions run #192
+mock-034,injection-unsafe-eval,Dynamic eval execution fixture,BLOCK,BLOCK,PR #57 / Actions run #193
