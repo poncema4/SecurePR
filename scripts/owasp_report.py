@@ -65,13 +65,15 @@ CWE_MAP = {
     "cwe-943": {"A05"},
 }
 
+# Keep keyword matching conservative. Scanner remediation text can contain
+# broad words such as "secret-management" that should not create a second
+# OWASP category for an otherwise credential-specific finding.
 KEYWORD_MAP = {
     "hardcoded-credential": {"A04", "A07"},
     "hardcoded-password": {"A04", "A07"},
     "privileged-username": {"A01", "A07"},
     "unsafe-eval": {"A05"},
     "unverified-tls": {"A02", "A04"},
-    "secret": {"A04", "A07", "A08"},
     "credential": {"A04", "A07"},
     "password": {"A04", "A07"},
     "authentication": {"A07"},
@@ -149,9 +151,6 @@ def main() -> int:
         for code in categories:
             blocked_by_finding[code].append(evidence)
 
-    # Tool/control failures are scoped only to the categories for which the
-    # failed control is an explicitly mapped control. A Semgrep finding is
-    # handled above from SARIF and therefore does not fan out to every row.
     failure_categories: dict[str, set[str]] = {code: set() for code, _ in CATEGORIES}
     if failed(os.getenv("DEPENDENCY_RESULT")):
         for code in ("A03", "A08"):
@@ -166,12 +165,9 @@ def main() -> int:
         for code, _ in CATEGORIES:
             failure_categories[code].add("CodeQL control failed")
     if failed(os.getenv("SEMGREP_RESULT")) and finding_count == 0:
-        for code in ("A01", "A02", "A03", "A04", "A05", "A06", "A07", "A08", "A09", "A10"):
+        for code, _ in CATEGORIES:
             failure_categories[code].add("Semgrep control failed without classified SARIF evidence")
     if failed(os.getenv("GITLEAKS_RESULT")):
-        # Gitleaks is a dedicated secret control. Its SARIF finding, when
-        # present, is classified above; a scanner failure is scoped to the
-        # credential/integrity categories it directly supports.
         for code in ("A04", "A07", "A08"):
             failure_categories[code].add("Gitleaks control failed")
 
