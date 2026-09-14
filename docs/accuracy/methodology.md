@@ -37,6 +37,8 @@ Therefore:
 
 The six false negatives are part of the measured MVP behavior. They should be investigated as possible detection gaps or application-context limitations rather than hidden or reclassified solely to improve a metric. The newest false negative is PR #64 / Actions run #203, where a synthetic `password = "demo_password"` assignment was expected to BLOCK but the gate returned PASS.
 
+The later hardcoded-credential fix and PR #67 validation do not retroactively rewrite this corpus. PR #67 was an unlabeled manual validation, so it is not a TP/TN/FP/FN case. If a future reviewed benchmark case is added, it should be appended deliberately with its own evidence rather than inferred from ordinary PR activity.
+
 ## Real pull-request benchmark mode
 
 A real PR can be evaluated as a benchmark case during its Actions run when a trusted reviewer adds exactly one expected-outcome label:
