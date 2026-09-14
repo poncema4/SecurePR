@@ -1,7 +1,7 @@
 # SecurePR Security Requirements
 
 ## Overview
-SecurePR evaluates pull-request changes using layered security controls. The gate is reusable across the user's own repositories and is not limited to the Phase 2 Python sample application.
+SecurePR evaluates pull-request changes using layered security controls. The gate is reusable across repositories you control and is not limited to the Flask demonstration application.
 
 These requirements define intended automated coverage. They are not a claim that automation can prove every security property.
 
@@ -17,19 +17,19 @@ SecurePR shall:
 6. Analyze security-relevant CI/CD configuration where practical.
 7. Map implemented coverage to OWASP Top 10:2025 and related secure-coding principles.
 8. Detect high-confidence hard-coded credentials and privileged identity values.
-9. Aggregate duplicate scanner findings into one meaningful result without hiding distinct findings.
+9. Aggregate duplicate scanner findings into one meaningful result without hiding distinct findings in detailed evidence.
 10. Produce exactly one overall `PASS` or `BLOCK` decision.
 11. Explain blocking results and remediation steps.
-12. Always recommend human review in PASS and BLOCK remediation guidance.
+12. Always recommend human review in PASS and BLOCK guidance.
 13. Never automatically modify source code, rotate credentials, or merge a pull request.
 14. Report unsupported or unavailable analysis coverage rather than silently treating it as secure.
-15. Remain reusable across the user's own repositories without requiring GitHub Marketplace publication.
-16. Provide a controlled final accuracy benchmark using TP, FP, TN, precision, recall, and F1.
+15. Remain reusable across repositories you control without requiring GitHub Marketplace publication.
+16. Provide a controlled accuracy benchmark using TP, FP, TN, precision, recall, and F1.
 17. Report the current accuracy-benchmark status on every PR without claiming unmeasured accuracy.
 
 ## OWASP Top 10:2025 Coverage Model
 
-The Phase 4 coverage model includes:
+The coverage model includes:
 
 - A01 Broken Access Control
 - A02 Security Misconfiguration
@@ -58,13 +58,13 @@ The gate shall detect common dependency manifests and only run ecosystem-specifi
 
 A high-confidence hard-coded password, credential, or privileged username detected by SecurePR policy is a blocking finding.
 
-Multiple tools may report the same underlying issue. SecurePR shall normalize identical SARIF findings using location, rule, and message so the developer sees one meaningful finding while detailed tool logs remain available. Distinct findings at the same location must remain distinct.
+Multiple tools may report the same underlying issue. SecurePR shall normalize identical SARIF findings using location, rule, and message for detailed evidence while preserving distinct findings.
 
 ## Gate Requirements
 
-`PASS` requires every configured blocking control to succeed and no blocking normalized finding to remain.
+`PASS` requires every configured blocking control to succeed and no blocking security finding to remain.
 
-`BLOCK` occurs when a configured blocking control fails or a blocking normalized finding remains.
+`BLOCK` occurs when a configured blocking control fails or a blocking security finding remains.
 
 There is no third gate state.
 
@@ -76,7 +76,7 @@ Automated checks do not replace review of business logic, architecture, threat a
 
 ## Accuracy Requirement
 
-At the end of Phase 4, SecurePR shall execute a controlled benchmark containing known vulnerable and known safe cases.
+The controlled benchmark is a final validation activity. It must contain known vulnerable and known safe cases that are actually executed through the configured gate.
 
 Record:
 
@@ -95,4 +95,4 @@ Calculate:
 
 Every PR must report either that the benchmark is pending or the latest measured TP, FP, TN, precision, recall, and F1. Before the benchmark is executed, no universal accuracy percentage may be claimed.
 
-The final report must state the benchmark scope, tested categories, tool configuration, and limitations. Measurements describe the tested corpus and configuration, not universal detection accuracy.
+The final benchmark record should state its scope, tested categories, tool configuration, and limitations. Measurements describe the tested corpus and configuration, not universal detection accuracy.

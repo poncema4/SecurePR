@@ -65,21 +65,19 @@ Benchmark data influences reported precision, recall, and F1. The benchmark must
 | T-09 | Sensitive information exposed through logs or errors | SAST and security tests |
 | T-10 | Supply-chain risk in automation or dependencies | Dependency controls, action review, and least privilege |
 | T-11 | Unsupported language silently treated as secure | Repository profiler and explicit coverage boundary |
-| T-12 | Duplicate scanner findings overwhelm the developer | Conservative SARIF normalization |
+| T-12 | Duplicate scanner findings overwhelm the developer | Conservative SARIF normalization in detailed evidence |
 | T-13 | Reusable workflow analyzes the wrong repository | Explicit target checkout and tooling checkout separation |
-| T-14 | Scanner false positive or false negative | Controlled final benchmark and human review |
+| T-14 | Scanner false positive or false negative | Controlled benchmark and human review |
 | T-15 | PR passes but resulting main state differs | Independent post-merge main workflow |
-| T-16 | Accuracy claim is made before measurement | Per-PR benchmark status and controlled final benchmark |
+| T-16 | Accuracy claim is made before measurement | Per-PR benchmark status and controlled benchmark |
 
-## Phase 3 Assessment
+## Security-Gate Assessment
 
-Phase 3 security-gate behavior was demonstrated with actual pull requests and then independently verified on the resulting `main` state. The controlled synthetic secret was detected and blocked, while the corrected demonstration passed.
+The gate has been validated through pull-request executions and independent post-merge verification. Controlled synthetic demonstrations are used for blocking and passing behavior; real credentials are never required.
 
-## Phase 4 Assessment Boundary
+The MVP expands this model to repository portability, multi-language analysis, finding aggregation, and empirical accuracy measurement. It does not claim that unsupported languages, design-level issues, or business-logic weaknesses are automatically proven safe.
 
-Phase 4 expands the model to repository portability, multi-language analysis, finding normalization, and empirical accuracy measurement. The project will not claim that unsupported languages, design-level issues, or business-logic weaknesses are automatically proven safe.
-
-Final Phase 4 validation must measure false positives and false negatives using TP, FP, TN, precision, recall, and F1 on a defined benchmark corpus.
+The controlled benchmark measures false positives and false negatives using TP, FP, TN, precision, recall, and F1 on a defined corpus.
 
 ## Risk Treatment
 

@@ -1,50 +1,77 @@
 # SecurePR Testing Strategy
 
 ## Overview
-Testing must show that SecurePR can detect defined security problems, block unsafe pull requests, allow corrected changes to pass, operate against repositories other than the Flask sample, and report its security coverage and accuracy limits honestly.
+Testing must show that SecurePR can detect defined security problems, block unsafe pull requests, allow corrected changes to pass, operate against repositories other than the Flask demonstration target, and report its security coverage and accuracy limits honestly.
 
 ## Development-Time Tests
 
-During implementation, run targeted tests for changed scripts and configuration so broken code is not knowingly committed. These are development checks, not the final Phase 4 accuracy claim.
+Run targeted tests for changed scripts and configuration so broken code is not knowingly committed.
 
-Current Phase 4 test areas include:
+Current test areas include:
 
 - repository/language detection
 - unsupported-language detection
-- SARIF parsing and conservative normalized finding keys
+- SARIF parsing and conservative finding aggregation
 - custom SecurePR Semgrep configuration
 - accuracy-metric formula implementation
-- per-run accuracy status reporting
+- pending and measured accuracy reporting
 - existing Flask security tests
 - workflow YAML/configuration consistency
 
-A finding normalization test must prove both that identical cross-tool findings can be grouped and that distinct findings at the same file/line are not incorrectly collapsed.
+Finding-aggregation tests prove both that identical cross-tool findings can be grouped and that distinct findings at the same file/line are not incorrectly collapsed.
 
-## Final Phase 4 Validation
+## Local Verification
 
-The comprehensive validation occurs **at the end of Phase 4**, after implementation and documentation are stable.
+From the repository root:
 
-The final sequence is:
+```bash
+python -m pytest -q
+python -m compileall -q app security tests scripts
+```
 
-1. Local verification of the complete repository.
-2. Validate workflow configuration and reusable workflow integration.
-3. Run the consolidated Phase 4 PR through the SecurePR gate.
-4. Exercise the reusable workflow against SecurePR, CookieGuard, and NetDefender using their actual supported languages/artifacts.
-5. Create controlled vulnerable cases for applicable security controls.
-6. Verify those vulnerable cases are blocked.
-7. Correct them and verify PASS.
-8. Test safe edge cases to identify false positives.
-9. Test known vulnerable cases that are difficult for the configured tools to detect to measure false negatives.
-10. Record every benchmark case and expected classification.
-11. Calculate TP, FP, TN, precision, recall, and F1.
-12. Record the tested categories, tool configuration, limitations, and coverage boundaries.
-13. Audit all documentation against the final implementation and measurements.
-14. Merge the one consolidated Phase 4 PR.
-15. Verify the post-merge `main` workflow passes.
+These checks validate the SecurePR implementation itself. GitHub Actions remains the authoritative environment for the complete gate because the workflows invoke CodeQL, Semgrep, Gitleaks, dependency audits, and GitHub-specific security reporting.
 
-## Accuracy Metrics
+## Testing PASS and BLOCK
 
-For the controlled benchmark:
+Use controlled synthetic examples only. Never commit real credentials or attack production systems.
+
+### BLOCK test
+1. Create an isolated test change containing a known high-confidence security defect, such as a synthetic hard-coded credential that matches the SecurePR rule.
+2. Open or update a PR against `main`.
+3. Confirm the `SecurePR Security Gate` job reports `BLOCK`.
+4. Inspect the Check Results table and native tool output.
+
+### PASS test
+1. Remove or remediate the synthetic defect on the **same branch and same PR**.
+2. Push the correction.
+3. Confirm the same gate reruns and reports `PASS` when all applicable controls pass.
+4. Confirm human-review guidance remains present.
+
+## Reusable-Repository Testing
+
+The reusable workflow is intended for repositories you control. A target repository can call:
+
+```yaml
+jobs:
+  securepr:
+    uses: poncema4/SecurePR/.github/workflows/reusable-security.yml@main
+```
+
+For stronger reproducibility, pin the reusable workflow to a reviewed commit SHA.
+
+Test portability using repositories with different stacks, such as:
+
+- SecurePR — Python
+- CookieGuard — JavaScript/TypeScript/Node/Next.js
+- NetDefender — whatever supported source languages and dependency artifacts are actually present
+
+Do not assume every target receives identical checks. Repository profiling determines which language, dependency, project-test, and CodeQL controls are applicable.
+
+## Accuracy Benchmark
+
+Accuracy must come from a controlled labeled benchmark, not from the fact that a normal PR passed.
+
+For each case, record the expected and actual gate result in `docs/accuracy/benchmark-results.csv`.
 
 - **TP:** vulnerable case correctly blocked.
 - **FP:** safe case incorrectly blocked.
@@ -57,26 +84,22 @@ For the controlled benchmark:
 
 `F1 = 2 × (Precision × Recall) / (Precision + Recall)`
 
-Every PR reports the current benchmark status. Before the final benchmark exists, the status is explicitly **Benchmark pending — no accuracy percentage is claimed**. After benchmark results are committed, every PR reports the latest measured TP, FP, TN, precision, recall, and F1.
+An empty benchmark ledger intentionally produces `Benchmark pending — no accuracy percentage is claimed.` Once actual labeled cases are recorded, every PR reports the measured TP, FP, TN, precision, recall, and F1.
 
-Do not claim 90% or 100% accuracy without measured results. If the benchmark produces lower or higher values, report the actual result and explain the corpus limitations.
+Do not claim 90% or 100% accuracy without measured results. The measurements describe the tested corpus and configuration only.
 
 ## PASS/BLOCK and Human Review
 
 There are exactly two gate outcomes:
 
-- `PASS` — configured blocking controls passed and no blocking normalized finding remains.
-- `BLOCK` — at least one configured blocking control failed or a blocking normalized finding remains.
+- `PASS` — configured blocking controls passed and no blocking security finding remains.
+- `BLOCK` — at least one configured blocking control failed or a blocking security finding remains.
 
 There is no separate `REVIEW` gate state. Human review is always recommended for both outcomes, especially for business logic, design, authorization intent, architecture, and findings that may be false positives.
 
-## PR Versus Main
+## Pull Request Versus Main
 
-A passing PR does not guarantee that the post-merge `main` workflow will pass. The PR run and push-to-main run are separate executions. Final validation therefore requires both.
-
-## One-PR Phase Workflow
-
-Phase 4 uses one feature branch and one consolidated PR. If a check fails, fix the same branch and same PR. Do not create another PR for the phase. Before merge, audit all relevant implementation and documentation again.
+A passing PR does not guarantee that the post-merge `main` workflow will pass. The PR run and push-to-main run are separate executions. Final verification requires both.
 
 ## Safety
 
@@ -88,4 +111,4 @@ Phase 4 uses one feature branch and one consolidated PR. If a check fails, fix t
 
 ## Completion Criteria
 
-Phase 4 is complete only when implementation, local verification, reusable-repository demonstrations, final benchmark metrics, documentation audit, one consolidated PR, merge, and post-merge `main` verification all pass.
+The MVP is complete when implementation, local verification, reusable-repository demonstrations, documentation audit, consolidated PR validation, merge, and post-merge `main` verification pass. The benchmark is separately considered complete only after its labeled cases have actually been executed and recorded.
