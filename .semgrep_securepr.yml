@@ -1,6 +1,6 @@
 rules:
   - id: securepr-hardcoded-password
-    languages: [generic]
+    languages: [regex]
     message: Hard-coded password or credential value detected; use an approved secret-management mechanism instead.
     severity: ERROR
     patterns:
