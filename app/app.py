@@ -1,17 +1,25 @@
 from __future__ import annotations
 
+import os
+import secrets
+
 from flask import Flask, abort, jsonify, request
 from werkzeug.security import check_password_hash, generate_password_hash
 
 app = Flask(__name__)
 
+# Demo credentials are supplied by the environment when explicitly configured.
+# Otherwise, generate process-local values so no usable credential is committed.
+DEMO_PASSWORD = os.environ.get("SECUREPR_DEMO_PASSWORD") or secrets.token_urlsafe(24)
+ADMIN_PASSWORD = os.environ.get("SECUREPR_ADMIN_PASSWORD") or secrets.token_urlsafe(24)
+
 USERS = {
     "demo": {
-        "password_hash": generate_password_hash("securepr-demo-password"),
+        "password_hash": generate_password_hash(DEMO_PASSWORD),
         "role": "user",
     },
     "admin": {
-        "password_hash": generate_password_hash("securepr-admin-password"),
+        "password_hash": generate_password_hash(ADMIN_PASSWORD),
         "role": "admin",
     },
 }
