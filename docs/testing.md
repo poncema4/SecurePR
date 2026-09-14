@@ -90,16 +90,18 @@ This provides real-time measurement without allowing an arbitrary PR to redefine
 
 `docs/accuracy/benchmark-results.csv` is a reviewed labeled evidence ledger. It is **not** automatically appended on every PR.
 
-The current benchmark contains 35 labeled cases:
+The current benchmark contains 37 labeled cases:
 
 - TP: 15
 - FP: 0
-- TN: 15
-- FN: 5
-- Conventional classification accuracy: 85.71%
+- TN: 16
+- FN: 6
+- Conventional classification accuracy: 83.78%
 - Precision: 100%
-- Recall: 75.00%
-- F1: 85.71%
+- Recall: 71.43%
+- F1: 83.33%
+
+PR #63 / Actions run #202 is a labeled PASS case. PR #64 / Actions run #203 is a labeled BLOCK case that returned PASS, so it is a measured false negative and is retained as evidence rather than being hidden. The follow-up credential-detection fix is validated independently.
 
 The false negatives are part of the measured MVP evidence. They should be investigated for genuine detection gaps, but benchmark optimization must not weaken precision or create unsupported universal claims.
 

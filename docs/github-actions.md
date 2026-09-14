@@ -104,7 +104,9 @@ Every PR receives an accuracy section in the Actions summary. An ordinary PR sho
 
 For a controlled benchmark PR, a trusted reviewer adds `securepr-expected-pass` or `securepr-expected-block`. The workflow reports the current PR's expected result, actual result, and classification correctness alongside cumulative TP, FP, TN, precision, recall, and F1.
 
-The current reviewed benchmark contains 35 cases: 15 TP, 0 FP, 15 TN, and 5 FN. This is 85.71% conventional classification accuracy, 100% precision, 75.00% recall, and 85.71% F1 for the controlled corpus only.
+The current reviewed benchmark contains 37 cases: 15 TP, 0 FP, 16 TN, and 6 FN. This is 83.78% conventional classification accuracy, 100% precision, 71.43% recall, and 83.33% F1 for the controlled corpus only.
+
+PR #63 / Actions run #202 is the latest PASS case. PR #64 / Actions run #203 is a false negative: the synthetic hardcoded password was expected to BLOCK but the gate returned PASS. The follow-up fix uses a Python AST-based credential assignment rule to close that validated gap.
 
 ## Pull request versus main
 

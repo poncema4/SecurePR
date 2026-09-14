@@ -21,21 +21,21 @@ Both expected and actual values must be known before a row contributes to the me
 
 ## Current MVP benchmark
 
-The current reviewed corpus contains 35 labeled cases:
+The current reviewed corpus contains 37 labeled cases:
 
 - TP: 15
 - FP: 0
-- TN: 15
-- FN: 5
+- TN: 16
+- FN: 6
 
 Therefore:
 
-- Conventional classification accuracy: `(TP + TN) / total` = **85.71%**
+- Conventional classification accuracy: `(TP + TN) / total` = **83.78%**
 - Precision: **100%**
-- Recall: **75.00%**
-- F1: **85.71%**
+- Recall: **71.43%**
+- F1: **83.33%**
 
-The five false negatives are part of the measured MVP behavior. They should be investigated as possible detection gaps or application-context limitations rather than hidden or reclassified solely to improve a metric.
+The six false negatives are part of the measured MVP behavior. They should be investigated as possible detection gaps or application-context limitations rather than hidden or reclassified solely to improve a metric. The newest false negative is PR #64 / Actions run #203, where a synthetic `password = "demo_password"` assignment was expected to BLOCK but the gate returned PASS.
 
 ## Real pull-request benchmark mode
 
