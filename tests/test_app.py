@@ -1,4 +1,4 @@
-from app.app import app, authenticate
+from app.app import DEMO_PASSWORD, app, authenticate
 
 
 def test_home_endpoint():
@@ -9,18 +9,18 @@ def test_home_endpoint():
 
 
 def test_valid_login():
-    assert authenticate("demo", "securepr-demo-password") is True
+    assert authenticate("demo", DEMO_PASSWORD) is True
 
 
 def test_invalid_login():
-    assert authenticate("demo", "wrong-password") is False
+    assert authenticate("demo", "definitely-not-the-demo-password") is False
 
 
 def test_login_endpoint_rejects_invalid_credentials():
     client = app.test_client()
     response = client.post(
         "/login",
-        json={"username": "demo", "password": "wrong-password"},
+        json={"username": "demo", "password": "definitely-not-the-demo-password"},
     )
     assert response.status_code == 401
 
