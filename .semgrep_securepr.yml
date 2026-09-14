@@ -8,10 +8,10 @@ rules:
           (?i)\b(password|passwd|pwd|secret|api[_-]?key|access[_-]?key|token)\s*[:=]\s*["'][^"'\n]{8,}["']
     paths:
       exclude:
-        - **/tests/**
-        - **/docs/**
-        - **/.venv/**
-        - **/node_modules/**
+        - "**/tests/**"
+        - "**/docs/**"
+        - "**/.venv/**"
+        - "**/node_modules/**"
   - id: securepr-hardcoded-privileged-username
     languages: [generic]
     message: Hard-coded privileged username detected; review whether privileged identity data belongs in source code.
@@ -21,10 +21,10 @@ rules:
           (?i)\b(username|user_name|login)\s*[:=]\s*["'](admin|administrator|root|superuser)["']
     paths:
       exclude:
-        - **/tests/**
-        - **/docs/**
-        - **/.venv/**
-        - **/node_modules/**
+        - "**/tests/**"
+        - "**/docs/**"
+        - "**/.venv/**"
+        - "**/node_modules/**"
   - id: securepr-unsafe-eval
     languages: [generic]
     message: Dynamic code evaluation detected; avoid eval-like execution of untrusted input.
@@ -34,10 +34,10 @@ rules:
           \b(eval|exec)\s*\(
     paths:
       exclude:
-        - **/tests/**
-        - **/docs/**
-        - **/.venv/**
-        - **/node_modules/**
+        - "**/tests/**"
+        - "**/docs/**"
+        - "**/.venv/**"
+        - "**/node_modules/**"
   - id: securepr-unverified-tls-python
     languages: [generic]
     message: TLS certificate verification is explicitly disabled; verify certificates unless a narrowly justified test-only exception applies.
@@ -47,7 +47,7 @@ rules:
           (?i)\bverify\s*=\s*False\b
     paths:
       exclude:
-        - **/tests/**
-        - **/docs/**
-        - **/.venv/**
-        - **/node_modules/**
+        - "**/tests/**"
+        - "**/docs/**"
+        - "**/.venv/**"
+        - "**/node_modules/**"
