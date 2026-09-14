@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+import sys
 from pathlib import Path
 from typing import Iterable
 
@@ -27,20 +28,16 @@ CUSTOM_RULES = {
 }
 
 CWE_MAP = {
-    # A01: access control / authorization / SSRF / CSRF.
     "200": {"A01"}, "201": {"A01"}, "284": {"A01"}, "285": {"A01"},
     "352": {"A01"}, "359": {"A01"}, "425": {"A01"}, "566": {"A01"},
     "639": {"A01"}, "668": {"A01"}, "862": {"A01"}, "863": {"A01"},
     "918": {"A01"},
-    # A02: configuration / insecure defaults.
     "5": {"A02"}, "11": {"A02"}, "13": {"A02"}, "15": {"A02"},
     "16": {"A02"}, "260": {"A02"}, "489": {"A02"}, "526": {"A02"},
     "547": {"A02"}, "611": {"A02"}, "614": {"A02"}, "776": {"A02"},
     "942": {"A02"}, "1004": {"A02"},
-    # A03: supply-chain/dependency weaknesses.
     "447": {"A03"}, "1035": {"A03"}, "1104": {"A03"}, "1329": {"A03"},
     "1357": {"A03"}, "1395": {"A03"},
-    # A04: cryptography and secret/key protection.
     "261": {"A04"}, "296": {"A04"}, "319": {"A04"}, "320": {"A04"},
     "321": {"A04"}, "322": {"A04"}, "323": {"A04"}, "324": {"A04"},
     "325": {"A04"}, "326": {"A04"}, "327": {"A04"}, "328": {"A04"},
@@ -49,20 +46,15 @@ CWE_MAP = {
     "338": {"A04"}, "340": {"A04"}, "342": {"A04"}, "347": {"A04"},
     "523": {"A04"}, "757": {"A04"}, "759": {"A04"}, "760": {"A04"},
     "780": {"A04"}, "916": {"A04"}, "1240": {"A04"}, "1241": {"A04"},
-    # A05: injection families.
     "20": {"A05"}, "74": {"A05"}, "76": {"A05"}, "77": {"A05"},
     "78": {"A05"}, "79": {"A05"}, "80": {"A05"}, "83": {"A05"},
     "89": {"A05"},
-    # A07: authentication / credential / session weaknesses.
     "287": {"A07"}, "288": {"A07"}, "294": {"A07"}, "306": {"A07"},
     "307": {"A07"}, "384": {"A07"}, "521": {"A07"}, "522": {"A07"},
     "613": {"A07"}, "620": {"A07"}, "640": {"A07"}, "798": {"A07"},
-    # A08: integrity / deserialization / trusted-source failures.
     "345": {"A08"}, "494": {"A08"}, "502": {"A08"}, "565": {"A08"},
     "829": {"A08"}, "915": {"A08"},
-    # A09: logging / monitoring / alerting.
     "117": {"A09"}, "223": {"A09"}, "532": {"A09"}, "778": {"A09"},
-    # A10: exceptional conditions / failing open / error handling.
     "209": {"A10"}, "215": {"A10"}, "234": {"A10"}, "235": {"A10"},
     "248": {"A10"}, "252": {"A10"}, "274": {"A10"}, "280": {"A10"},
     "369": {"A10"}, "390": {"A10"}, "391": {"A10"}, "394": {"A10"},
@@ -93,8 +85,9 @@ def _cwes(values: Iterable[str]) -> set[str]:
 
 def _mapped_categories(result: dict, rule: dict) -> set[str]:
     rule_id = str(result.get("ruleId", ""))
-    if rule_id in CUSTOM_RULES:
-        return set(CUSTOM_RULES[rule_id])
+    normalized_rule_id = rule_id.rsplit(".", 1)[-1]
+    if normalized_rule_id in CUSTOM_RULES:
+        return set(CUSTOM_RULES[normalized_rule_id])
 
     values = list(_strings(result.get("properties", {})))
     values += list(_strings(rule.get("properties", {})))
