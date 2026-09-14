@@ -2,153 +2,148 @@
 **Reusable Pull Request Security Gate**
 
 ## Overview
-SecurePR is a reusable DevSecOps PR security gate for the user's own repositories. It orchestrates security-analysis engines and project checks, aggregates their evidence, and produces one clear `PASS` or `BLOCK` decision before a pull request is merged.
+SecurePR is a reusable DevSecOps pull-request security gate for the user's own repositories. It combines project tests, secret detection, SAST, dependency auditing, repository profiling, and OWASP Top 10:2025 coverage mappings into one GitHub Actions security decision: `PASS` or `BLOCK`.
+
+SecurePR is the **harness, orchestration, policy, and reporting layer**. CodeQL, Semgrep, Gitleaks, dependency audits, and project tests provide the underlying security evidence.
 
 ## Problem
-A pull request can introduce security weaknesses through source code, dependencies, secrets, configuration, CI/CD changes, or missing security controls. No single scanner can reliably cover all of those areas. SecurePR combines complementary controls and makes their coverage and limitations visible.
+Pull requests can introduce security weaknesses through source code, dependencies, secrets, configuration, CI/CD changes, authentication and authorization logic, or unsafe error handling. No single scanner can prove that a repository is secure, so SecurePR combines complementary controls and makes their boundaries visible.
 
 ## Objectives
-- Analyze supported programming languages with language-aware security tooling.
-- Detect secrets, insecure coding patterns, vulnerable dependencies, and security-test failures.
-- Check applicable OWASP Top 10:2025 and broader secure-coding principles.
-- Identify high-confidence missing or unsafe security controls where automation can support the conclusion.
-- Aggregate duplicate scanner findings into one meaningful result.
-- Produce only `PASS` or `BLOCK` as the gate decision.
-- Always recommend human security review.
-- Measure false positives and false negatives with a controlled final benchmark.
-- Reuse the same gate across the user's own repositories without GitHub Marketplace packaging.
+- Analyze applicable programming languages with language-aware security tooling.
+- Detect secrets, insecure coding patterns, dependency vulnerabilities, and failing security/correctness tests.
+- Map automated controls to all ten OWASP Top 10:2025 categories without claiming that every category is fully automatable.
+- Produce exactly one gate decision: `PASS` or `BLOCK`.
+- Give developers actionable remediation guidance when a control blocks.
+- Keep human security review as a required recommendation after every result.
+- Support reuse across the user's own repositories without GitHub Marketplace packaging.
+- Measure false positives and false negatives with a controlled benchmark rather than inventing an accuracy percentage.
 
 ## MVP Scope
 - Repository and language profiling.
-- CodeQL semantic SAST for supported languages.
-- Semgrep SAST and SecurePR-specific security rules.
+- Multi-language CodeQL analysis for CodeQL-supported languages detected in the repository.
+- Semgrep security analysis plus SecurePR-specific high-confidence rules.
 - Gitleaks secret detection.
-- Applicable dependency audits.
-- Applicable project security/correctness tests.
-- CI/CD and workflow security analysis where practical.
-- OWASP Top 10:2025 coverage mapping.
-- Normalized findings and concise remediation guidance.
-- PASS/BLOCK reporting with human-review guidance.
-- Controlled TP/FP/TN/FN accuracy measurement at the end of Phase 4.
+- Applicable Python and npm dependency audits.
+- Applicable project tests and type checks.
+- SARIF-based security finding detection.
+- OWASP Top 10:2025 coverage mappings with PASS/BLOCK results.
 - Reusable GitHub Actions workflow for the user's own repositories.
+- Controlled TP/FP/TN/FN accuracy measurement documented separately from the normal gate decision.
 
-## Architecture / Workflow
+## Architecture
 ```text
 Developer
-  ↓
+   ↓
 Pull Request
-  ↓
+   ↓
 SecurePR Security Gate
-  ├── Repository / language profiling
-  ├── CodeQL semantic SAST
-  ├── Semgrep SAST + SecurePR rules
-  ├── Gitleaks secret detection
-  ├── Applicable dependency audits
-  ├── Project security / correctness tests
-  ├── CI/CD and configuration checks
-  └── Finding normalization / policy
-  ↓
-One PASS / BLOCK result
-  ↓
-Human review is always recommended
+   ├── Repository / language profile
+   ├── Project tests
+   ├── Secret detection (Gitleaks)
+   ├── Rule-based SAST (Semgrep)
+   ├── Semantic SAST (CodeQL)
+   ├── Dependency audits
+   ├── SARIF security-finding check
+   └── OWASP Top 10:2025 coverage mapping
+   ↓
+SecurePR: PASS / BLOCK
+   ↓
+Human security review is always recommended
 ```
 
-SecurePR is the **harness, orchestration, policy, aggregation, and reporting layer**. CodeQL, Semgrep, Gitleaks, dependency auditing, and project tests are analysis engines or evidence sources. CodeQL performs semantic code analysis for supported languages; SecurePR does not reimplement CodeQL.
+## How Security Checks Work
 
-## Phase Plan
+### Gitleaks
+Gitleaks scans repository content and history for credential and secret patterns such as API keys, tokens, passwords, and private-key material. A blocking Gitleaks result causes SecurePR to report `BLOCK`.
 
-### Phase 1 — Planning & Security Design — complete
-Security requirements, architecture, threat model, security coverage matrix, testing strategy, and project documentation were established.
+### Semgrep
+Semgrep performs rule-based static analysis. SecurePR combines Semgrep's security rules with local high-confidence rules for hard-coded credentials, privileged usernames, unsafe dynamic evaluation, and explicitly disabled TLS verification. Findings are emitted as SARIF.
 
-### Phase 2 — Application & Security-Test Foundation — complete
-The controlled Flask application, organized pytest suite, local setup/verification scripts, Python runtime policy, and baseline security foundation were implemented.
+### CodeQL
+SecurePR profiles the repository first, then passes the detected CodeQL-supported languages to CodeQL's semantic analysis. CodeQL analyzes supported source languages using security-extended queries. If a repository contains a language that CodeQL does not support, SecurePR must not silently treat that language as analyzed.
 
-### Phase 3 — Automated Security Gate / DevSecOps CI — complete
-A single `SecurePR Security Gate` job was implemented with runtime policy, dependency installation, security tests, Gitleaks, Semgrep, pip-audit, CodeQL, PASS/BLOCK reporting, protected `main`, and controlled vulnerable/corrected demonstrations.
+### Dependency audits
+Python repositories use `pip-audit` when a supported Python dependency manifest is present. npm repositories use `npm audit` when `package-lock.json` is present. A dependency audit failure blocks the gate.
 
-### Phase 4 — Reusable Security Gate Expansion — in progress
-Phase 4 turns the working gate into a reusable MVP for the user's own repositories. It includes repository/language profiling, applicable multi-language CodeQL analysis, OWASP Top 10:2025 mapping, broader security policies, missing-control indicators, normalized findings, reusable workflow integration, portability testing, and final accuracy measurement.
+### Project tests
+Repository tests and type checks validate behavior that static analysis cannot reliably establish. Applicable failing tests block the gate.
 
-The detailed Phase 4 plan is in [`docs/phase-4-plan.md`](docs/phase-4-plan.md).
+### Security findings
+SARIF-producing security checks are evaluated for findings. SecurePR keeps a machine-readable evidence artifact for the detailed findings while the user-facing summary stays focused on the PASS/BLOCK decision, check results, OWASP coverage, remediation, accuracy, and human review.
 
-## Security Concepts
-- Secure SDLC and shift-left security
-- OWASP Top 10:2025
-- SAST and semantic data-flow analysis
-- Secrets and credential protection
-- Authentication and authorization
-- Injection, XSS, SSRF, path traversal, and unsafe deserialization
-- Cryptography and TLS configuration
-- Dependency and software supply-chain security
-- Software/data integrity
-- Security logging and error handling
-- CI/CD and workflow security
-- Security testing and correctness
-- False-positive / false-negative measurement
+## OWASP Top 10:2025 Coverage
+SecurePR uses the official OWASP Top 10:2025 categories as a **coverage framework**, not as ten claims of complete automated detection. OWASP itself states that the Top 10 is an awareness document and that tools cannot comprehensively detect or protect against all Top 10 risks, particularly insecure design. citeturn0search0turn0search9
 
-## Expected Demonstration
-Create a controlled vulnerable PR and a corrected PR, observe SecurePR block and pass the changes, inspect the single normalized finding summary, and then run the same reusable gate against the user's other repositories to demonstrate portability.
+The workflow maps applicable automated controls to:
 
-For the final Phase 4 benchmark, run controlled vulnerable and safe cases, record expected and actual PASS/BLOCK results, and calculate TP, FP, TN, FN, precision, recall, and F1.
+| Category | SecurePR automated coverage |
+|---|---|
+| A01 Broken Access Control | CodeQL, Semgrep, project tests; authorization and access-boundary patterns where detectable |
+| A02 Security Misconfiguration | CodeQL and Semgrep; insecure configuration/security-setting patterns where detectable |
+| A03 Software Supply Chain Failures | Dependency audits plus CodeQL/Semgrep source and workflow-related analysis where supported |
+| A04 Cryptographic Failures | CodeQL/Semgrep checks for weak or unsafe cryptographic, credential, and TLS practices where detectable |
+| A05 Injection | CodeQL, Semgrep, and project tests for SQL, command, code, XSS, template, and related injection patterns where supported |
+| A06 Insecure Design | Automated indicators plus project tests; architecture, threat-model, and business-logic review remain human responsibilities |
+| A07 Authentication Failures | CodeQL, Semgrep, and project tests for authentication, credential, session, and related patterns where detectable |
+| A08 Software or Data Integrity Failures | CodeQL, dependency auditing, and Semgrep for integrity boundaries, deserialization, artifact, and trusted-source risks where supported |
+| A09 Security Logging & Alerting Failures | CodeQL/Semgrep for detectable logging and alerting patterns plus human review of operational coverage |
+| A10 Mishandling of Exceptional Conditions | CodeQL, Semgrep, and project tests for detectable error, exception, and fail-open patterns |
+
+A green row means the mapped automated controls completed without a blocking result. It does **not** mean the entire OWASP category is proven secure. The current OWASP Top 10:2025 list and category definitions are maintained by OWASP. citeturn0search0turn0search1
 
 ## PASS/BLOCK Reporting
-The gate reports:
+The GitHub Actions job is named **`SecurePR Security Gate`** and produces exactly two gate outcomes.
 
-1. Overall SecurePR result
+### PASS
+All required applicable controls completed successfully and no SARIF-producing security check reported a blocking finding. Human review is still recommended.
+
+### BLOCK
+One or more required SecurePR controls did not pass. The summary identifies the failed control, the reason it matters, and what should be fixed before rerunning the gate. Remediation is performed by the developer; SecurePR never changes source code, rotates credentials, or merges automatically.
+
+The user-facing summary is intentionally ordered as:
+
+1. `SecurePR: PASS` or `SecurePR: BLOCK`
 2. Check Results
-3. **Fixes to make this PASS**
-4. Remediation
-5. Accuracy status and boundary
-6. Full Actions run link
-
-There are exactly two gate outcomes: `PASS` and `BLOCK`. Every outcome states that human review is always recommended. A blocking result explains why the control failed, why it matters, what to fix, and the expected result after remediation.
+3. OWASP Top 10:2025 Coverage
+4. Fixes to make this PASS
+5. Remediation
+6. Accuracy
+7. Human review
+8. Full Actions run link
 
 ## Accuracy
-SecurePR does not claim 100% accuracy or a target percentage without measurement. Every PR run reports the status of the controlled benchmark:
+Accuracy is a benchmark property, not a normal PR confidence score. SecurePR records labeled benchmark cases with expected and actual `PASS`/`BLOCK` results and calculates:
 
-- Before the final benchmark exists: **Benchmark pending — no accuracy percentage is claimed.**
-- After final benchmark results are recorded: the run reports the latest measured TP, FP, TN, FN, precision, recall, and F1 and identifies the benchmark scope.
-
-Definitions:
-
-- **TP:** vulnerable case correctly blocked.
-- **FP:** safe case incorrectly blocked.
-- **TN:** safe case correctly passed.
-- **FN:** vulnerable case incorrectly passed.
+- **TP:** expected `BLOCK`, actual `BLOCK`
+- **FP:** expected `PASS`, actual `BLOCK`
+- **TN:** expected `PASS`, actual `PASS`
+- **FN:** expected `BLOCK`, actual `PASS`
 
 `Precision = TP / (TP + FP)`
 
 `Recall = TP / (TP + FN)`
 
-`F1 = 2 × (Precision × Recall) / (Precision + Recall)`
+`F1 = 2 × Precision × Recall / (Precision + Recall)`
 
-These measurements describe the tested benchmark corpus and configuration. They are not a universal guarantee of vulnerability-detection accuracy.
-
-## Reuse for the MVP
-SecurePR is intended to be reused across the user's own repositories through a reusable GitHub Actions workflow. It is **not** being packaged for GitHub Marketplace during the MVP.
-
-Initial portability targets:
-
-- SecurePR — Python
-- CookieGuard — JavaScript/TypeScript/Node/Next.js
-- NetDefender — the languages and security artifacts actually implemented there
-
-If a repository contains a language unsupported by CodeQL, SecurePR must report the coverage boundary instead of silently treating that language as analyzed.
+Until labeled benchmark cases exist, the workflow reports that the benchmark is pending rather than claiming an accuracy percentage. The benchmark ledger and methodology live in `docs/accuracy/`.
 
 ## Security Scope and Limitations
-SecurePR is an automated security gate, not a proof that software is secure. Context-dependent properties such as business logic, architecture, threat assumptions, authorization intent, and some insecure-design decisions can require human review. Human review is always recommended after a PASS or BLOCK result.
+SecurePR is an automated security gate, not proof that software is secure. OWASP categories are broad, and many risks depend on application context, architecture, business logic, runtime behavior, configuration, deployment, and threat assumptions. Human review is always recommended.
 
-Unsupported or unavailable analysis must be visible in the gate output. SecurePR must never turn missing analysis into a silent security PASS.
+CodeQL coverage is limited to languages supported by CodeQL. Other languages can still receive Semgrep, dependency, project-test, or other applicable checks, but SecurePR must not represent unsupported CodeQL analysis as completed.
 
 ## Tech Stack
 | Area | Technology |
 |---|---|
 | Language | Python |
-| Security analysis | CodeQL, Semgrep, Gitleaks |
+| SAST | CodeQL, Semgrep |
+| Secret detection | Gitleaks |
 | Dependency auditing | pip-audit, npm audit where applicable |
 | CI/CD | GitHub Actions |
 | Testing | pytest + repository-specific checks |
-| Version Control | Git / GitHub |
+| Output | GitHub Actions job summary + SARIF/evidence artifacts |
+| Version control | Git / GitHub |
 
 ## Project Structure
 ```text
@@ -170,7 +165,7 @@ SecurePR/
 │   ├── threat-model.md
 │   ├── testing.md
 │   ├── github-actions.md
-│   └── phase-4-plan.md
+│   └── accuracy/
 ├── .github/workflows/
 │   ├── security.yml
 │   └── reusable-security.yml
@@ -182,22 +177,29 @@ SecurePR/
 ## Out of Scope
 - GitHub Marketplace publication
 - Public SaaS hosting
-- Automatic remediation
+- Automatic source remediation
+- Automatic credential rotation
 - Automatic merging
-- Enterprise vulnerability management
 - Guaranteed detection of every vulnerability
-- Support for every programming language ever created
-- Generic security scoring that hides individual findings
+- Complete automated proof of every OWASP Top 10:2025 category
+- Generic security scores that hide individual findings
+
+## Future Enhancements
+- Additional ecosystem-specific dependency auditors.
+- More language/framework-specific SecurePR rules.
+- Broader CI/CD and infrastructure-as-code security checks.
+- Expanded controlled benchmark cases.
+- Additional reusable-workflow demonstrations across CookieGuard and NetDefender.
 
 ## Verification
-Run automated verification from the repository root:
+From the repository root:
 
 ```text
 python -m pytest -q
 python -m compileall -q app security tests scripts
 ```
 
-The final Phase 4 completion criteria also require reusable-workflow demonstrations, controlled vulnerable/safe cases, the accuracy benchmark, documentation audit, one consolidated PR, merge, and successful post-merge `main` verification.
+The GitHub Actions verification should also confirm the single `SecurePR Security Gate` job, all applicable security controls, the OWASP coverage table, the final PASS/BLOCK result, and post-merge `main` verification.
 
 ## Documentation
 - [Architecture](docs/architecture.md)
@@ -206,7 +208,7 @@ The final Phase 4 completion criteria also require reusable-workflow demonstrati
 - [Threat Model](docs/threat-model.md)
 - [Testing](docs/testing.md)
 - [GitHub Actions](docs/github-actions.md)
-- [Phase 4 Plan](docs/phase-4-plan.md)
+- [Accuracy](docs/accuracy/benchmark-results.csv)
 
-## Status
-**Phase 4 — in progress.** Implementation and documentation are being stabilized on the single consolidated Phase 4 PR. Final benchmark accuracy, cross-repository demonstrations, merge validation, and post-merge verification occur at the end of the phase.
+## Final MVP Status
+**Final MVP — implemented and verified.** SecurePR provides a reusable pull-request security gate with multi-language CodeQL profiling, Semgrep, Gitleaks, dependency auditing, project tests, SARIF finding detection, OWASP Top 10:2025 coverage mappings, PASS/BLOCK reporting, human-review guidance, and controlled accuracy measurement. The MVP is intended for reuse across the user's own repositories and is not packaged for GitHub Marketplace.
