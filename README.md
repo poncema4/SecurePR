@@ -38,7 +38,7 @@ SecurePR provides one reusable security gate and one consistent reporting model.
 4. Combine complementary security engines into one decision.
 5. Report clear `PASS` or `BLOCK` results with remediation guidance.
 6. Map automated evidence to OWASP Top 10:2025 without claiming complete category coverage.
-7. Measure gate behavior with labeled benchmark cases and TP/FP/TN/FN metrics.
+7. Measure gate behavior with labeled benchmark cases and TP/FP/TN metrics.
 8. Keep remediation and merging under developer/reviewer control.
 
 ## MVP Scope
@@ -129,6 +129,7 @@ name: SecurePR Security Gate
 on:
   pull_request:
     branches: [main]
+    types: [opened, synchronize, reopened, labeled]
   push:
     branches: [main]
 
@@ -180,7 +181,7 @@ A real PR can be evaluated immediately as a benchmark case when a trusted review
 - `securepr-expected-pass`
 - `securepr-expected-block`
 
-The Actions summary then shows the current PR's expected result, actual result, and whether the classification was correct, alongside cumulative TP, FP, TN, precision, recall, and F1.
+The pull-request workflow also listens for the `labeled` event, so adding one of these labels causes the gate to rerun and the Actions summary to show the current PR's expected result, actual result, and whether the classification was correct, alongside cumulative TP, FP, TN, precision, recall, and F1.
 
 The committed CSV is a reviewed benchmark ledger. It is intentionally **not** modified by every ordinary PR. After a labeled benchmark case is verified, its expected and actual result can be added to `docs/accuracy/benchmark-results.csv` through a normal reviewed change.
 
