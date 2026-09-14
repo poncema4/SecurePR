@@ -24,10 +24,15 @@ SecurePR Harness
       Security Evidence / SARIF
             ↓
     SecurePR Aggregation + Policy
-            ↓
-       PASS / BLOCK
-            ↓
-       Human Review
+       ┌───────────────┐
+       │               │
+       ↓               ↓
+ Overall Gate      OWASP Category Mapping
+ PASS / BLOCK      A01–A10 PASS / BLOCK
+       │               │
+       └───────┬───────┘
+               ↓
+          Human Review
 ```
 
 ## Harness Versus Analysis Engines
@@ -42,6 +47,7 @@ The separation of responsibilities is fundamental to the MVP:
 | Gitleaks | Secret and credential detection |
 | Dependency auditors | Known vulnerability checks for supported package ecosystems |
 | Project tests | Repository-specific behavior and security assertions |
+| OWASP mapper | Finding-level mapping of SARIF evidence to relevant OWASP Top 10:2025 categories |
 
 SecurePR consumes these tools' evidence rather than attempting to reimplement their scanners.
 
@@ -58,6 +64,7 @@ There is no single LLM prompt that defines SecurePR security policy. The rule bo
 7. Target-repository tests supply application-specific evidence.
 8. `repository_profile.py` determines which language and dependency controls apply.
 9. `summarize_sarif.py` aggregates SARIF findings for SecurePR reporting.
+10. `owasp_report.py` maps individual SARIF findings to relevant OWASP categories.
 
 The detailed control inventory is maintained in `docs/security-checks.md`.
 
@@ -68,6 +75,8 @@ The workflow initializes CodeQL only when `repository_profile.py` detects a supp
 ## Semgrep
 
 Semgrep runs both its `p/security-audit` configuration and `.semgrep_securepr.yml`. The custom SecurePR rules provide high-confidence checks for selected credential, privileged-identity, dynamic-evaluation, and Python TLS patterns. The hard-coded credential policy uses a raw-text regex rule for non-Python files and a Python AST-based assignment rule for Python files, closing the validated gap exposed by PR #64.
+
+Semgrep remains a blocking gate control, but a Semgrep failure does not mean that all ten OWASP categories are vulnerable. OWASP category results are based on the individual findings that can be mapped to each category.
 
 ## Gitleaks
 
@@ -91,22 +100,31 @@ Native tool logs remain available for diagnosis.
 
 ## OWASP Top 10:2025 Coverage
 
-OWASP Top 10:2025 is used as a coverage framework. SecurePR maps the automated controls that actually run to applicable categories rather than implementing ten separate scanners.
+OWASP Top 10:2025 is used as a coverage framework. SecurePR does not implement ten separate scanners. Instead, `scripts/owasp_report.py` examines SARIF findings and maps them only when there is sufficient evidence from an explicit OWASP tag, an OWASP-mapped CWE, or a SecurePR custom rule.
 
-A category PASS means the mapped automated controls passed; it does not prove the complete OWASP category is secure. Context-dependent risks, including insecure design, business logic, authorization intent, and architecture, retain a human-review boundary.
+The overall gate and category table are intentionally independent:
+
+- **Overall gate:** `BLOCK` if any required control fails or a blocking security finding remains; otherwise `PASS`.
+- **OWASP category:** `BLOCK` if a finding maps to that category; otherwise `PASS` for the run.
+
+This prevents a single finding from being duplicated across unrelated categories merely because the same scanner participates in several mappings. Unmapped findings still block the overall gate but are not assigned to a category without evidence.
+
+A category `PASS` means that no mapped automated finding was reported. It does not prove the complete category is secure. Context-dependent risks, including insecure design, business logic, authorization intent, and architecture, retain a human-review boundary.
 
 ## Security Decision
 
-Only two outcomes are allowed:
+Only two outcomes are allowed for the authoritative gate:
 
 - **PASS:** all configured blocking controls pass and no blocking security finding remains.
 - **BLOCK:** a configured blocking control fails or a blocking security finding remains.
 
-There is no third `REVIEW` state. Both outcomes state that human review is recommended.
+The OWASP table also uses only `PASS` / `BLOCK`, but its meaning is narrower: it describes whether a category-specific mapped finding was reported. There is no third `REVIEW` state. Human review is recommended for both outcomes.
 
 ## Accuracy
 
 The benchmark is a reviewed ground-truth corpus. The current 37-case corpus contains 15 TP, 0 FP, 16 TN, and 6 FN, producing 83.78% conventional classification accuracy, 100% precision, 71.43% recall, and 83.33% F1. These measurements describe the controlled corpus and configuration only.
+
+The OWASP reporting fix does not change `docs/accuracy/benchmark-results.csv` because it does not change the observed overall PASS/BLOCK outcome of any reviewed benchmark case. The CSV remains the reviewed source of truth for gate accuracy.
 
 ## Trust Boundaries
 
