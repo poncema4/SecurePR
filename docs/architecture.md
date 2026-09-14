@@ -62,7 +62,9 @@ The profile is used to avoid treating an unsupported language as successfully an
 Native tool logs remain available for diagnosis.
 
 ## Accuracy Reporting
-`scripts/accuracy_report.py` reports the current controlled-benchmark status on every PR. Before labeled benchmark results exist, it explicitly reports that the benchmark is pending and makes no accuracy claim. After results exist, it reports TP, FP, TN, precision, recall, and F1.
+`scripts/accuracy_report.py` reports cumulative labeled-benchmark metrics on every PR. When a trusted reviewer adds `securepr-expected-pass` or `securepr-expected-block`, the pull-request workflow reruns and reports the current PR's expected result, actual SecurePR result, and classification correctness in the same Actions summary.
+
+An unlabeled PR is not counted as a TP, FP, TN, or FN because its expected security outcome is unknown. The permanent CSV ledger remains a reviewed ground-truth dataset rather than an automatically mutated record of every PR.
 
 The benchmark measures the tested corpus and configuration; it does not prove universal detection accuracy.
 
