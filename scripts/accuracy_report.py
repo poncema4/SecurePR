@@ -14,15 +14,17 @@ DEFAULT_RESULTS = Path("docs/accuracy/benchmark-results.csv")
 
 
 def render(path: Path) -> str:
+    formulas = (
+        "**Formulas:** TP = expected BLOCK + actual BLOCK; FP = expected PASS + actual BLOCK; "
+        "TN = expected PASS + actual PASS; FN = expected BLOCK + actual PASS. "
+        "Precision = TP / (TP + FP). Recall = TP / (TP + FN). "
+        "F1 = 2 × Precision × Recall / (Precision + Recall)."
+    )
+
     if not path.exists():
         return (
-            "**Accuracy status:** Benchmark pending — no accuracy percentage is claimed.\n\n"
-            "No labeled benchmark CSV is present yet. Final Phase 4 validation will measure "
-            "TP, FP, TN, FN, precision, recall, and F1.\n\n"
-            "**Formulas:** TP = expected BLOCK + actual BLOCK; FP = expected PASS + actual BLOCK; "
-            "TN = expected PASS + actual PASS; FN = expected BLOCK + actual PASS. "
-            "Precision = TP / (TP + FP). Recall = TP / (TP + FN). "
-            "F1 = 2 × Precision × Recall / (Precision + Recall)."
+            "Benchmark pending — no labeled benchmark cases are recorded yet. No accuracy percentage is claimed.\n\n"
+            + formulas
         )
 
     with path.open(newline="", encoding="utf-8") as handle:
@@ -30,25 +32,22 @@ def render(path: Path) -> str:
 
     if not rows:
         return (
-            "**Accuracy status:** Benchmark pending — no labeled benchmark cases have been recorded yet.\n\n"
-            "No accuracy percentage is claimed. Add controlled benchmark cases with an expected "
-            "PASS/BLOCK label and the observed SecurePR result before reporting TP/FP/TN/FN.\n\n"
-            "**Formulas:** TP = expected BLOCK + actual BLOCK; FP = expected PASS + actual BLOCK; "
-            "TN = expected PASS + actual PASS; FN = expected BLOCK + actual PASS. "
-            "Precision = TP / (TP + FP). Recall = TP / (TP + FN). "
-            "F1 = 2 × Precision × Recall / (Precision + Recall)."
+            "Benchmark pending — no labeled benchmark cases are recorded yet. No accuracy percentage is claimed.\n\n"
+            + formulas
         )
 
-    incomplete = [row for row in rows if row.get("expected") not in {"PASS", "BLOCK"} or row.get("actual") not in {"PASS", "BLOCK"}]
+    incomplete = [
+        row for row in rows
+        if row.get("expected") not in {"PASS", "BLOCK"}
+        or row.get("actual") not in {"PASS", "BLOCK"}
+    ]
     if incomplete:
         raise ValueError(f"Benchmark contains {len(incomplete)} unlabeled or invalid case(s).")
 
     metrics = calculate(rows)
     total = metrics.tp + metrics.fp + metrics.tn + metrics.fn
-
     return (
-        "**Accuracy status:** Latest controlled benchmark results\n\n"
-        f"- Labeled cases: {total}\n"
+        f"Labeled benchmark cases: {total}\n\n"
         f"- TP: {metrics.tp}\n"
         f"- FP: {metrics.fp}\n"
         f"- TN: {metrics.tn}\n"
@@ -56,10 +55,7 @@ def render(path: Path) -> str:
         f"- Precision: {metrics.precision:.4f}\n"
         f"- Recall: {metrics.recall:.4f}\n"
         f"- F1: {metrics.f1:.4f}\n\n"
-        "**Formulas:** Precision = TP / (TP + FP). Recall = TP / (TP + FN). "
-        "F1 = 2 × Precision × Recall / (Precision + Recall).\n\n"
-        "These measurements describe the labeled benchmark corpus and configuration; "
-        "they are not a universal guarantee of vulnerability-detection accuracy."
+        + formulas
     )
 
 
