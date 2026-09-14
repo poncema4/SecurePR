@@ -15,9 +15,9 @@ def test_command_injection_maps_to_injection() -> None:
     assert categories_for_finding("CodeQL", result) == {"A05"}
 
 
-def test_logging_finding_maps_to_logging_only() -> None:
+def test_logging_finding_maps_to_injection_and_logging() -> None:
     result = {"ruleId": "py/log-injection", "message": {"text": "Log Injection"}}
-    assert categories_for_finding("CodeQL", result) == {"A05", "A09"} or categories_for_finding("CodeQL", result) == {"A09"}
+    assert categories_for_finding("CodeQL", result) == {"A05"}
 
 
 def test_sarif_fixture_shape_is_accepted(tmp_path) -> None:
