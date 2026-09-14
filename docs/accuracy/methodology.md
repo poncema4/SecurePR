@@ -2,56 +2,55 @@
 
 ## Purpose
 
-SecurePR does not claim a universal detection-accuracy percentage from a single successful or failed pull request. Detection quality is measured from controlled, labeled benchmark cases.
+SecurePR measures gate behavior from labeled benchmark cases. A normal pull request does not automatically provide ground truth, so a PASS or BLOCK result by itself is not a TP, FP, TN, or FN.
 
-## Required benchmark fields
+## Labeled benchmark cases
 
-`docs/accuracy/benchmark-results.csv` records one case per row:
+`docs/accuracy/benchmark-results.csv` is the reviewed benchmark ledger. Each completed row contains:
 
-- `case_id`: stable identifier for the controlled case.
-- `category`: security category or control being evaluated.
-- `description`: short description of the case.
-- `expected`: ground-truth gate result, `PASS` or `BLOCK`.
-- `actual`: observed SecurePR gate result, `PASS` or `BLOCK`.
-- `notes`: evidence, tool output, or explanation for the classification.
+- `case_id` — stable case identifier.
+- `category` — security category or control.
+- `description` — short case description.
+- `expected` — ground-truth `PASS` or `BLOCK`.
+- `actual` — observed SecurePR `PASS` or `BLOCK`.
+- `notes` — evidence and classification context.
 
-A row must have both `expected` and `actual` populated with valid `PASS`/`BLOCK` values before it contributes to the metrics.
+Both expected and actual values must be known before a row contributes to the metrics.
 
-## Confusion matrix
+## Real pull-request benchmark mode
 
-For each labeled case:
+A real PR can be evaluated as a benchmark case during its Actions run when a trusted reviewer adds exactly one expected-outcome label:
 
-- **True Positive (TP):** expected `BLOCK`, actual `BLOCK`.
-- **False Positive (FP):** expected `PASS`, actual `BLOCK`.
-- **True Negative (TN):** expected `PASS`, actual `PASS`.
-- **False Negative (FN):** expected `BLOCK`, actual `PASS`.
+- `securepr-expected-pass`
+- `securepr-expected-block`
 
-## Formulas
+SecurePR immediately reports the current PR's expected result, actual gate result, and whether the classification is correct. It also reports the cumulative metrics from the committed CSV.
 
-**Precision** measures how often a SecurePR BLOCK corresponds to a case that should actually be blocked:
+This current-PR measurement does not automatically modify the CSV. The expected result is ground truth and must be deliberately reviewed before becoming permanent benchmark evidence.
+
+## Metrics
+
+- **TP:** expected `BLOCK`, actual `BLOCK`.
+- **FP:** expected `PASS`, actual `BLOCK`.
+- **TN:** expected `PASS`, actual `PASS`.
+- **FN:** expected `BLOCK`, actual `PASS`.
 
 `Precision = TP / (TP + FP)`
 
-**Recall** measures how often SecurePR blocks cases that should actually be blocked:
-
 `Recall = TP / (TP + FN)`
-
-**F1** balances precision and recall:
 
 `F1 = 2 × Precision × Recall / (Precision + Recall)`
 
 The implementation returns `0` when a denominator is zero rather than inventing a percentage.
 
-## Per-use interpretation
+## CSV update policy
 
-A normal pull request provides an observed gate result, but it does not automatically provide ground truth. Therefore a PR PASS/BLOCK result is not itself a TP, FP, TN, or FN.
+The CSV is intentionally not appended on every ordinary PR. SecurePR cannot safely infer the expected outcome of arbitrary developer changes, and allowing arbitrary PRs to mutate the accuracy ledger would make the measurement easy to manipulate.
 
-When a controlled case has a known expected result, record the expected and observed outcomes in the benchmark CSV. Re-running the same controlled case after a fix creates new evidence; it should be recorded with a distinct case identifier or benchmark revision so the measurement history remains auditable.
+After a labeled benchmark PR has been executed and verified, record the case in the CSV through a normal reviewed change. Use a distinct case identifier for each deliberate benchmark case so the measurement history remains auditable.
 
-This prevents SecurePR from calling an unknown result a false positive or false negative merely because a developer disagrees with a tool. False-positive and false-negative classifications require a ground-truth label supported by the controlled benchmark evidence.
+## Interpretation
 
-## Final Phase 4 benchmark
+Accuracy metrics describe the labeled benchmark corpus and its configuration. They are not a universal real-world vulnerability-detection accuracy percentage.
 
-The final Phase 4 validation should include both vulnerable/block cases and safe/pass cases across the supported security controls. The resulting CSV is the source data for TP, FP, TN, FN, precision, recall, and F1.
-
-The benchmark should be executed only after the implementation and documentation stabilize, as defined by the Phase 4 plan. Until then, the Actions summary reports **Benchmark pending** rather than an unsupported accuracy percentage.
+Human security review remains necessary, especially for business logic, architecture, threat assumptions, authorization intent, and other context-dependent risks.

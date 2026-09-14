@@ -136,9 +136,48 @@ jobs:
         if: always()
         run: python .securepr-tooling/scripts/summarize_sarif.py . > securepr-findings.log
 
+      - name: Prepare current PR accuracy context
+        id: accuracy-context
+        if: always()
+        env:
+          RUNTIME: ${{ steps.python-runtime.outcome }}
+          PROFILE: ${{ steps.profile.outcome }}
+          PYTHON_INSTALL: ${{ steps.python-install.outcome }}
+          PYTHON_TESTS: ${{ steps.python-tests.outcome }}
+          NODE_TESTS: ${{ steps.node-tests.outcome }}
+          DEPENDENCY: ${{ steps.dependency-audit.outcome }}
+          GITLEAKS: ${{ steps.gitleaks.outcome }}
+          SEMGREP: ${{ steps.semgrep.outcome }}
+          CODEQL_INIT: ${{ steps.codeql-init.outcome }}
+          CODEQL_ANALYZE: ${{ steps.codeql-analyze.outcome }}
+          FINDINGS: ${{ steps.finding-summary.outcome }}
+        shell: bash
+        run: |
+          actual="PASS"
+          for value in \
+            "$RUNTIME" \
+            "$PROFILE" \
+            "$PYTHON_INSTALL" \
+            "$PYTHON_TESTS" \
+            "$NODE_TESTS" \
+            "$DEPENDENCY" \
+            "$GITLEAKS" \
+            "$SEMGREP" \
+            "$CODEQL_INIT" \
+            "$CODEQL_ANALYZE" \
+            "$FINDINGS"; do
+            if [[ "$value" == "failure" ]]; then
+              actual="BLOCK"
+            fi
+          done
+          echo "actual=$actual" >> "$GITHUB_OUTPUT"
+
       - name: Calculate accuracy evidence
         id: accuracy
         if: always()
+        env:
+          SECUREPR_EXPECTED_OUTCOME: ${{ contains(github.event.pull_request.labels.*.name, 'securepr-expected-block') && 'BLOCK' || contains(github.event.pull_request.labels.*.name, 'securepr-expected-pass') && 'PASS' || '' }}
+          SECUREPR_ACTUAL_OUTCOME: ${{ steps.accuracy-context.outputs.actual }}
         run: python .securepr-tooling/scripts/accuracy_report.py > securepr-accuracy.md
 
       - name: Publish SecurePR result
@@ -164,9 +203,9 @@ jobs:
 
           result() {
             if [[ "$1" == "success" || "$1" == "skipped" ]]; then
-              echo "🟢 PASS"
+              echo "PASS"
             else
-              echo "🔴 BLOCK"
+              echo "BLOCK"
             fi
           }
 
@@ -182,8 +221,7 @@ jobs:
             "$DEPENDENCY_RESULT" \
             "$CODEQL_INIT_RESULT" \
             "$CODEQL_ANALYZE_RESULT" \
-            "$FINDING_SUMMARY_RESULT" \
-            "$ACCURACY_RESULT"; do
+            "$FINDING_SUMMARY_RESULT"; do
             if [[ "$value" == "failure" ]]; then
               overall="BLOCK"
             fi
@@ -194,13 +232,13 @@ jobs:
             for value in "$@"; do
               if [[ "$value" == "failure" ]]; then failed=1; fi
             done
-            if [[ "$failed" -eq 0 ]]; then echo "🟢 PASS"; else echo "🔴 BLOCK"; fi
+            if [[ "$failed" -eq 0 ]]; then echo "PASS"; else echo "BLOCK"; fi
           }
 
           if [[ "$overall" == "PASS" ]]; then
-            echo "## 🟢 SecurePR: PASS" >> "$GITHUB_STEP_SUMMARY"
+            echo "## SecurePR: PASS" >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "## 🔴 SecurePR: BLOCK" >> "$GITHUB_STEP_SUMMARY"
+            echo "## SecurePR: BLOCK" >> "$GITHUB_STEP_SUMMARY"
           fi
 
           echo "" >> "$GITHUB_STEP_SUMMARY"
@@ -227,7 +265,6 @@ jobs:
 
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "### OWASP Top 10:2025 Coverage" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "The rows below are **coverage mappings**. PASS means the listed automated controls completed without a blocking result; BLOCK means at least one mapped control blocked. A PASS does not prove the entire OWASP category is secure." >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "| OWASP category | Result | Automated controls | What is checked |" >> "$GITHUB_STEP_SUMMARY"
@@ -262,7 +299,6 @@ jobs:
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "### Human review" >> "$GITHUB_STEP_SUMMARY"
           echo "Human review is always recommended. A PASS is not proof that the repository is vulnerability-free, and a BLOCK should be investigated with the native tool output and application context." >> "$GITHUB_STEP_SUMMARY"
-
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "[Open the full Actions run]($RUN_URL)" >> "$GITHUB_STEP_SUMMARY"
 
