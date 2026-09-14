@@ -80,6 +80,6 @@ def test_securepr_custom_security_rules_match_high_confidence_cases():
     config = Path('.semgrep_securepr.yml').read_text(encoding='utf-8')
     assert 'password|passwd|pwd|secret|api[_-]?key|access[_-]?key|token' in config
     assert '(admin|administrator|root|superuser)' in config
-    assert r'\\b(eval|exec)\\s*\\(' in config
-    assert r'\\bverify\\s*=\\s*False\\b' in config
+    assert '\\b(eval|exec)\\s*\\(' in config
+    assert '\\bverify\\s*=\\s*False\\b' in config
     assert 'paths:' in config and 'tests/**' in config and 'docs/**' in config
