@@ -151,12 +151,14 @@ The Actions summary reports the expected result, actual SecurePR result, classif
 
 `docs/accuracy/benchmark-results.csv` is a reviewed ground-truth ledger and is not automatically changed by ordinary PR runs.
 
-The current 26-case controlled benchmark contains 10 TP, 0 FP, 11 TN, and 5 FN:
+The current 37-case controlled benchmark contains 15 TP, 0 FP, 16 TN, and 6 FN:
 
-- Conventional classification accuracy: **80.77%**
+- Conventional classification accuracy: **83.78%**
 - Precision: **100%**
-- Recall: **66.67%**
-- F1: **80.00%**
+- Recall: **71.43%**
+- F1: **83.33%**
+
+PR #63 / Actions run #202 is the latest manual PASS case. PR #64 / Actions run #203 is the latest manual hardcoded-password BLOCK case, but SecurePR returned PASS; it is therefore a recorded false negative. The credential-detection fix in the follow-up validation PR adds a Python AST-based high-confidence assignment rule.
 
 These metrics describe the labeled benchmark corpus and configuration only; they are not universal real-world accuracy claims.
 
