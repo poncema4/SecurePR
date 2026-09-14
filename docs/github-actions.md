@@ -104,7 +104,7 @@ Every PR receives an accuracy section in the Actions summary. An ordinary PR sho
 
 For a controlled benchmark PR, a trusted reviewer adds `securepr-expected-pass` or `securepr-expected-block`. The workflow reports the current PR's expected result, actual result, and classification correctness alongside cumulative TP, FP, TN, precision, recall, and F1.
 
-The current reviewed benchmark contains 26 cases: 10 TP, 0 FP, 11 TN, and 5 FN. This is 80.77% conventional classification accuracy, 100% precision, 66.67% recall, and 80.00% F1 for the controlled corpus only.
+The current reviewed benchmark contains 35 cases: 15 TP, 0 FP, 15 TN, and 5 FN. This is 85.71% conventional classification accuracy, 100% precision, 75.00% recall, and 85.71% F1 for the controlled corpus only.
 
 ## Pull request versus main
 
