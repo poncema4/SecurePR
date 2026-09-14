@@ -64,13 +64,13 @@ def render(path: Path) -> str:
     expected = os.environ.get("SECUREPR_EXPECTED_OUTCOME", "").strip().upper()
     actual = os.environ.get("SECUREPR_ACTUAL_OUTCOME", "").strip().upper()
 
-    current_case = ""
     if expected in VALID_OUTCOMES and actual in VALID_OUTCOMES:
+        classification = "CORRECT" if expected == actual else "INCORRECT"
         current_case = (
             "\n\n### Current PR benchmark case\n\n"
             f"- Expected: `{expected}`\n"
             f"- Actual: `{actual}`\n"
-            f"- Classification: `{\"CORRECT\" if expected == actual else \"INCORRECT\"}`\n\n"
+            f"- Classification: `{classification}`\n\n"
             "This PR is treated as a benchmark case only because an expected outcome was explicitly supplied. "
             "The committed CSV is not modified automatically."
         )
