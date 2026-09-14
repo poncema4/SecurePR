@@ -23,8 +23,8 @@ def render(path: Path) -> str:
 
     if not path.exists():
         return (
-            "Benchmark pending — no labeled benchmark cases are recorded yet. No accuracy percentage is claimed.\n\n"
-            + formulas
+            "Benchmark pending — no labeled benchmark cases are recorded yet. "
+            "No accuracy percentage is claimed.\n\n" + formulas
         )
 
     with path.open(newline="", encoding="utf-8") as handle:
@@ -32,8 +32,8 @@ def render(path: Path) -> str:
 
     if not rows:
         return (
-            "Benchmark pending — no labeled benchmark cases are recorded yet. No accuracy percentage is claimed.\n\n"
-            + formulas
+            "Benchmark pending — no labeled benchmark cases are recorded yet. "
+            "No accuracy percentage is claimed.\n\n" + formulas
         )
 
     incomplete = [
