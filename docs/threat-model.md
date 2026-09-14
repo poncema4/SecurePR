@@ -1,7 +1,9 @@
 # SecurePR Threat Model
 
 ## Scope
-The threat model covers the sample application, pull-request workflow, GitHub Actions automation, project dependencies, security tools, reusable workflow, repository profiling, finding aggregation, accuracy reporting, and final security-gate decision.
+The threat model covers the sample application, pull-request workflow, GitHub Actions automation, project dependencies, multiple security engines, reusable workflow, repository profiling, finding aggregation, accuracy reporting, and final security-gate decision.
+
+SecurePR itself is the **harness and policy layer**. CodeQL, Semgrep, Gitleaks, dependency auditors, and project tests are separate evidence-producing components under that harness.
 
 No real credentials are required or intended to be project assets.
 
@@ -24,11 +26,11 @@ No real credentials are required or intended to be project assets.
 ### TB-01 — Pull Request to CI
 Developer-controlled changes enter an automated CI environment. Pull-request content must not automatically be treated as trusted workflow configuration or shell input.
 
-### TB-02 — Workflow to External Tools
-The workflow invokes scanners, dependency services, package managers, and third-party actions. These integrations introduce supply-chain and input-handling considerations.
+### TB-02 — Workflow to Security Engines
+The harness invokes scanners, dependency services, package managers, and third-party actions. These integrations introduce supply-chain and input-handling considerations.
 
 ### TB-03 — Tool Output to Gate
-Security-tool results become inputs to the final PASS/BLOCK decision. Exit codes and step outcomes must be interpreted consistently.
+Security-tool results become inputs to the final PASS/BLOCK decision. Exit codes, findings, and step outcomes must be interpreted consistently.
 
 ### TB-04 — Workflow to GitHub Resources
 Actions may have access to repository metadata, pull requests, code-scanning results, or tokens. Permissions should follow least privilege.
@@ -37,7 +39,7 @@ Actions may have access to repository metadata, pull requests, code-scanning res
 The reusable workflow executes against the caller repository while obtaining SecurePR tooling from an intentional SecurePR ref. The workflow must clearly distinguish target-repository files from SecurePR tooling files.
 
 ### TB-06 — Benchmark Results to Accuracy Claims
-Benchmark data influences reported precision, recall, and F1. The benchmark must contain labeled cases and must not be presented as universal detection accuracy.
+Benchmark data influences reported precision, recall, F1, and classification accuracy. The benchmark must contain independently labeled cases and must not be presented as universal detection accuracy.
 
 ## STRIDE Analysis
 
@@ -65,7 +67,7 @@ Benchmark data influences reported precision, recall, and F1. The benchmark must
 | T-09 | Sensitive information exposed through logs or errors | SAST and security tests |
 | T-10 | Supply-chain risk in automation or dependencies | Dependency controls, action review, and least privilege |
 | T-11 | Unsupported language silently treated as secure | Repository profiler and explicit coverage boundary |
-| T-12 | Duplicate scanner findings overwhelm the developer | Conservative SARIF normalization in detailed evidence |
+| T-12 | Duplicate scanner findings overwhelm the developer | Conservative SARIF aggregation in detailed evidence |
 | T-13 | Reusable workflow analyzes the wrong repository | Explicit target checkout and tooling checkout separation |
 | T-14 | Scanner false positive or false negative | Controlled benchmark and human review |
 | T-15 | PR passes but resulting main state differs | Independent post-merge main workflow |
@@ -75,9 +77,9 @@ Benchmark data influences reported precision, recall, and F1. The benchmark must
 
 The gate has been validated through pull-request executions and independent post-merge verification. Controlled synthetic demonstrations are used for blocking and passing behavior; real credentials are never required.
 
-The MVP expands this model to repository portability, multi-language analysis, finding aggregation, and empirical accuracy measurement. It does not claim that unsupported languages, design-level issues, or business-logic weaknesses are automatically proven safe.
+The MVP expands this model to repository portability, multi-language analysis, multiple underlying security engines, finding aggregation, and empirical accuracy measurement. It does not claim that unsupported languages, design-level issues, or business-logic weaknesses are automatically proven safe.
 
-The controlled benchmark measures false positives and false negatives using TP, FP, TN, precision, recall, and F1 on a defined corpus.
+The current controlled benchmark contains 26 labeled cases: 10 TP, 0 FP, 11 TN, and 5 FN. This produces 80.77% conventional classification accuracy, 100% precision, 66.67% recall, and 80.00% F1 for the controlled corpus only.
 
 ## Risk Treatment
 
