@@ -2,24 +2,98 @@
 
 ## Overview
 
-This document is the executable security-coverage reference for SecurePR. The workflow determines which controls apply to the target repository and combines their evidence into one gate.
+This document is the executable security-coverage and policy reference for the SecurePR MVP.
+
+**SecurePR is the security harness. It is not a standalone scanner and it is not an LLM prompt.** SecurePR orchestrates multiple specialist security engines and project checks, collects their evidence, applies the gate policy, aggregates results, and publishes one `PASS` or `BLOCK` decision.
+
+The primary policy implementation is `.github/workflows/security.yml`. The custom SecurePR Semgrep rules are in `.semgrep_securepr.yml`. The underlying engines provide the security evidence; SecurePR does not reimplement those engines.
+
+## Security Decision Rule Book
+
+```text
+Pull Request
+    ↓
+Repository Profile / Applicability
+    ↓
+Project Tests + Dependency Audits
+    ↓
+Gitleaks + Semgrep + CodeQL
+    ↓
+SARIF / Tool Results
+    ↓
+SecurePR Aggregation + Policy
+    ↓
+PASS or BLOCK
+```
+
+A configured blocking control failure or a blocking security finding produces `BLOCK`. If all applicable blocking controls succeed and no blocking finding remains, the result is `PASS`.
+
+There is no third `REVIEW` gate state. Human review is recommended for both outcomes.
 
 ## Core Gate Controls
 
-| Control | How SecurePR runs it | Gate behavior |
-|---|---|---|
-| Python runtime policy | Reads the repository runtime declaration and enforces the supported minimum | BLOCK on unsupported declared runtime |
-| Repository profile | Detects applicable CodeQL languages and dependency manifests | BLOCK if profiling fails |
-| Project tests | Runs applicable Python and JS/TS tests/type checks | BLOCK on failure |
-| Gitleaks | Scans repository content/history for secrets and credential material | BLOCK on failure/finding |
-| Semgrep | Runs security rules plus SecurePR-specific high-confidence rules and emits SARIF | BLOCK on failure/finding |
-| Dependency audit | Runs pip-audit for Python and npm audit for npm lockfiles | BLOCK on audit failure |
-| CodeQL | Analyzes detected CodeQL-supported languages with security-extended queries | BLOCK on initialization/analysis failure |
-| SARIF security findings | Evaluates SARIF-producing security results | BLOCK when findings are reported |
+| Control | Underlying engine / implementation | How SecurePR uses it | Gate behavior |
+|---|---|---|---|
+| Python runtime policy | SecurePR Python policy script | Checks the declared Python runtime against the supported minimum | BLOCK on unsupported declared runtime |
+| Repository profile | SecurePR `repository_profile.py` | Detects applicable languages and dependency manifests | BLOCK if profiling fails; unsupported language boundaries are reported |
+| Project tests | Target repository test suite | Exercises behavior that static analysis cannot fully prove | BLOCK on failure |
+| Gitleaks | Gitleaks | Detects secrets, credentials, tokens, and other secret material | BLOCK on failure/finding |
+| Semgrep | Semgrep `p/security-audit` + SecurePR custom rules | Performs rule-based SAST and high-confidence SecurePR-specific checks | BLOCK on failure/finding |
+| Dependency audit | `pip-audit`, `npm audit` | Checks supported dependency ecosystems when their manifests are present | BLOCK on audit failure |
+| CodeQL | GitHub CodeQL `security-extended` | Performs semantic/data-flow security analysis for detected CodeQL-supported languages | BLOCK on initialization/analysis failure |
+| SARIF evaluation | SecurePR `summarize_sarif.py` | Aggregates SARIF security findings from scanner output | BLOCK when findings are reported |
+
+## SecurePR Custom Rules
+
+`.semgrep_securepr.yml` is the main source of SecurePR-specific Semgrep policy. The current MVP includes high-confidence rules for:
+
+- hard-coded password/credential-like literal values
+- hard-coded privileged usernames such as `admin`, `root`, and `administrator`
+- unsafe dynamic `eval` / `exec` use
+- explicitly disabled Python TLS certificate verification such as `verify = False`
+
+Tests, documentation, and SecurePR tooling are excluded from these application-source rules where configured by the workflow.
+
+These custom rules supplement, rather than replace, Semgrep's broader `p/security-audit` rules.
+
+## CodeQL
+
+CodeQL is an underlying semantic security-analysis engine. SecurePR does not define all CodeQL queries itself. The workflow initializes CodeQL for languages detected by `repository_profile.py` and requests the `security-extended` query suite.
+
+CodeQL analyzes supported source code and can identify security properties involving program structure and data flow. Its findings become part of SecurePR's evidence and gate evaluation while native CodeQL evidence remains available for diagnosis.
+
+## Semgrep
+
+Semgrep is a complementary rule-based SAST engine. SecurePR runs both:
+
+1. Semgrep's `p/security-audit` rules.
+2. SecurePR's `.semgrep_securepr.yml` custom rules.
+
+A Semgrep failure or reported security finding contributes to the final `BLOCK` decision.
+
+## Gitleaks
+
+Gitleaks is the dedicated secret-detection engine. It provides detection for credential and secret patterns that are different from general source-code SAST. SecurePR consumes the tool's result; it does not attempt to replace Gitleaks with a generic regular expression.
+
+## Dependency Analysis
+
+Dependency auditing is ecosystem-specific. The MVP runs `pip-audit` when `requirements.txt` is present and `npm audit` when `package-lock.json` is present. A repository without a currently supported dependency manifest does not fail merely because no dependency ecosystem applies.
+
+## Repository Profiling and Language Applicability
+
+`scripts/repository_profile.py` determines which CodeQL-supported languages and dependency manifests apply to the target repository. Supported CodeQL language families include C/C++, C#, Go, Java/Kotlin, JavaScript/TypeScript, Python, Ruby, Rust, and Swift.
+
+PHP and Scala are explicit CodeQL coverage boundaries in this MVP. Unsupported source extensions are reported rather than silently treated as successfully analyzed.
+
+## SARIF Evidence and Aggregation
+
+Semgrep and CodeQL produce machine-readable SARIF evidence. `scripts/summarize_sarif.py` scans SARIF recursively and groups identical findings using artifact location, start line, rule ID, and message. Tool name is not used as the identity key, so duplicate reports from different engines can be consolidated while distinct findings at the same location remain separate.
+
+Native tool output remains available for diagnosis.
 
 ## OWASP Top 10:2025 Coverage
 
-OWASP Top 10:2025 is a **coverage framework**. It is not a claim that SecurePR can completely automate every category.
+OWASP Top 10:2025 is a **coverage framework**, not a separate SecurePR scanner. SecurePR maps the automated controls that actually run to applicable OWASP categories.
 
 | Category | Automated controls | Boundary |
 |---|---|---|
@@ -28,39 +102,22 @@ OWASP Top 10:2025 is a **coverage framework**. It is not a claim that SecurePR c
 | A03 Software Supply Chain Failures | Dependency audit, CodeQL, Semgrep | Full build/distribution trust cannot be proven by these checks |
 | A04 Cryptographic Failures | CodeQL, Semgrep | Cryptographic design and context may require review |
 | A05 Injection | CodeQL, Semgrep, project tests | Runtime/framework behavior can exceed static coverage |
-| A06 Insecure Design | CodeQL, Semgrep, project tests | Architecture, threat model, requirements, and business logic require human review |
+| A06 Insecure Design | CodeQL, Semgrep, project tests + human review | Architecture, requirements, threat assumptions, and business logic require review |
 | A07 Authentication Failures | CodeQL, Semgrep, project tests | Correct authentication intent and operational controls require review |
 | A08 Software or Data Integrity Failures | CodeQL, dependency audit, Semgrep | End-to-end artifact and data trust may require review |
-| A09 Security Logging & Alerting Failures | CodeQL, Semgrep | Operational monitoring effectiveness requires review |
+| A09 Security Logging & Alerting Failures | CodeQL, Semgrep + human review | Operational monitoring effectiveness requires review |
 | A10 Mishandling of Exceptional Conditions | CodeQL, Semgrep, project tests | Complete runtime failure behavior cannot be established statically |
 
-A category PASS means its mapped automated controls passed. It does not prove that the complete OWASP category is secure.
-
-## SecurePR-Specific Semgrep Rules
-
-SecurePR includes high-confidence rules for:
-
-- hard-coded password/credential-like values
-- hard-coded privileged usernames
-- unsafe `eval`/`exec` use
-- explicitly disabled Python TLS certificate verification
-
-Tests and documentation are excluded from these application-source rules.
-
-## SARIF Evidence
-
-Semgrep and CodeQL produce machine-readable security evidence. `scripts/summarize_sarif.py` groups identical findings for detailed evidence while preserving distinct findings. Native tool output remains available for diagnosis.
+A mapped category `PASS` means its listed automated controls passed. It does not prove the entire OWASP category is secure.
 
 ## Accuracy
 
-Every PR reports cumulative labeled benchmark metrics. A normal PR is not counted as a TP, FP, TN, or FN without ground truth.
+The controlled benchmark is a reviewed ground-truth corpus in `docs/accuracy/benchmark-results.csv`. It currently contains 26 labeled cases: 10 TP, 0 FP, 11 TN, and 5 FN. That corresponds to 80.77% conventional classification accuracy, 100% precision, 66.67% recall, and 80.00% F1 for this controlled corpus.
 
-A trusted reviewer can add `securepr-expected-pass` or `securepr-expected-block` to a real PR. The current Actions run then reports expected result, actual result, and classification correctness immediately.
-
-The benchmark ledger is `docs/accuracy/benchmark-results.csv`. It is intentionally not modified automatically by ordinary PR runs.
+These measurements describe the benchmark and its configuration only. They are not universal real-world accuracy claims. The five false negatives should be treated as evidence of the current benchmark's detection boundaries, not as permission to weaken precision merely to improve a metric.
 
 ## Gate Design
 
-The authoritative workflow has one job named `SecurePR Security Gate` and exactly two outcomes: `PASS` and `BLOCK`.
+The authoritative workflow has one job named `SecurePR Security Gate` and exactly two gate outcomes: `PASS` and `BLOCK`.
 
-SecurePR does not automatically modify source code, rotate credentials, or merge pull requests. Human review is always recommended.
+SecurePR never automatically modifies source code, rotates credentials, dismisses findings, or merges pull requests. Human review is always recommended.
