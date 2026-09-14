@@ -2,7 +2,9 @@
 
 ## Overview
 
-Testing must show that SecurePR detects defined security problems, blocks unsafe pull requests, allows corrected changes to pass, works as a reusable workflow, and reports accuracy honestly.
+Testing must show that the SecurePR **harness** orchestrates its underlying engines correctly, detects defined security problems, blocks unsafe pull requests, allows corrected changes to pass, works as a reusable workflow, and reports benchmark behavior honestly.
+
+SecurePR is not tested as if it were one scanner. The test strategy validates the interaction of repository profiling, project tests, Gitleaks, Semgrep, dependency audits, CodeQL, SARIF aggregation, and final PASS/BLOCK policy.
 
 ## Local Verification
 
@@ -33,7 +35,7 @@ Use controlled synthetic examples only. Never commit real credentials.
 1. Create a safe synthetic change containing a known high-confidence security defect, such as a credential-like literal that matches a SecurePR rule.
 2. Open one PR against `main`.
 3. Confirm `SecurePR Security Gate` reports `BLOCK`.
-4. Inspect the Check Results table and native tool output.
+4. Inspect the Check Results table and native engine output.
 
 ### PASS test
 
@@ -43,6 +45,19 @@ Use controlled synthetic examples only. Never commit real credentials.
 4. Confirm human-review guidance remains present.
 
 Do not create a second PR just to test the remediation path.
+
+## Engine-specific validation
+
+Controlled cases should exercise the different evidence sources independently where practical:
+
+- **Semgrep:** custom SecurePR rules and broader `p/security-audit` rules.
+- **CodeQL:** supported-language semantic/data-flow security queries.
+- **Gitleaks:** synthetic secret and credential cases.
+- **Dependency audits:** intentionally selected vulnerable dependency fixtures where safe and reproducible.
+- **Project tests:** application-specific security and correctness properties.
+- **SARIF aggregation:** multiple scanner reports and duplicate/different finding behavior.
+
+The purpose is to verify that SecurePR remains the harness and that each engine contributes its own evidence rather than being treated as interchangeable.
 
 ## Reusable workflow testing
 
@@ -67,7 +82,7 @@ For a controlled real-PR benchmark, a trusted reviewer adds exactly one expected
 - `securepr-expected-pass`
 - `securepr-expected-block`
 
-The Actions summary immediately reports the current PR's expected result, actual result, and whether the classification is correct. It also reports cumulative metrics from the committed benchmark CSV.
+The Actions summary reports the current PR's expected result, actual result, and whether the classification is correct. It also reports cumulative metrics from the committed benchmark CSV.
 
 This provides real-time measurement without allowing an arbitrary PR to redefine the ground truth.
 
@@ -75,22 +90,18 @@ This provides real-time measurement without allowing an arbitrary PR to redefine
 
 `docs/accuracy/benchmark-results.csv` is a reviewed labeled evidence ledger. It is **not** automatically appended on every PR.
 
-After a benchmark PR is executed and verified, record its expected and actual result in the CSV through a normal reviewed change. Use a distinct case identifier for each deliberate case.
+The current benchmark contains 26 labeled cases:
 
-Current metrics are calculated from every completed labeled row:
+- TP: 10
+- FP: 0
+- TN: 11
+- FN: 5
+- Conventional classification accuracy: 80.77%
+- Precision: 100%
+- Recall: 66.67%
+- F1: 80.00%
 
-- **TP:** expected BLOCK, actual BLOCK.
-- **FP:** expected PASS, actual BLOCK.
-- **TN:** expected PASS, actual PASS.
-- **FN:** expected BLOCK, actual PASS.
-
-`Precision = TP / (TP + FP)`
-
-`Recall = TP / (TP + FN)`
-
-`F1 = 2 × Precision × Recall / (Precision + Recall)`
-
-The current benchmark describes its labeled corpus only; it is not a universal real-world accuracy claim.
+The false negatives are part of the measured MVP evidence. They should be investigated for genuine detection gaps, but benchmark optimization must not weaken precision or create unsupported universal claims.
 
 ## Pull Request versus main
 
