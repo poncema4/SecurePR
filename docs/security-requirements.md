@@ -1,9 +1,10 @@
 # SecurePR Security Requirements
 
 ## Overview
-SecurePR evaluates pull-request changes using layered security controls. The gate is reusable across repositories you control and is not limited to the Flask demonstration application.
 
-These requirements define intended automated coverage. They are not a claim that automation can prove every security property.
+SecurePR evaluates pull-request changes using layered security controls. The gate is reusable across repositories you own or are authorized to assess.
+
+These requirements define automated coverage; they do not claim automation can prove every security property.
 
 ## Core Requirements
 
@@ -15,21 +16,21 @@ SecurePR shall:
 4. Audit supported dependency ecosystems when a relevant manifest exists.
 5. Run applicable security and correctness tests.
 6. Analyze security-relevant CI/CD configuration where practical.
-7. Map implemented coverage to OWASP Top 10:2025 and related secure-coding principles.
+7. Map implemented coverage to OWASP Top 10:2025 and secure-coding principles.
 8. Detect high-confidence hard-coded credentials and privileged identity values.
-9. Aggregate duplicate scanner findings into one meaningful result without hiding distinct findings in detailed evidence.
+9. Aggregate duplicate scanner findings without hiding distinct findings in detailed evidence.
 10. Produce exactly one overall `PASS` or `BLOCK` decision.
 11. Explain blocking results and remediation steps.
-12. Always recommend human review in PASS and BLOCK guidance.
+12. Always recommend human review.
 13. Never automatically modify source code, rotate credentials, or merge a pull request.
-14. Report unsupported or unavailable analysis coverage rather than silently treating it as secure.
-15. Remain reusable across repositories you control without requiring GitHub Marketplace publication.
-16. Provide a controlled accuracy benchmark using TP, FP, TN, precision, recall, and F1.
-17. Report the current accuracy-benchmark status on every PR without claiming unmeasured accuracy.
+14. Report unsupported or unavailable analysis coverage instead of silently treating it as secure.
+15. Remain reusable without requiring GitHub Marketplace publication.
+16. Measure gate behavior with TP, FP, TN, precision, recall, and F1 from labeled cases.
+17. Report cumulative accuracy on every PR and, when a trusted expected-outcome label is present, report the current PR's expected-versus-actual classification immediately.
 
 ## OWASP Top 10:2025 Coverage Model
 
-The coverage model includes:
+The coverage model includes A01 through A10:
 
 - A01 Broken Access Control
 - A02 Security Misconfiguration
@@ -42,23 +43,15 @@ The coverage model includes:
 - A09 Security Logging & Alerting Failures
 - A10 Mishandling of Exceptional Conditions
 
-Additional secure-coding concerns include secrets, SQL/command/template injection, XSS, SSRF, unsafe deserialization, path traversal, weak cryptography, disabled TLS verification, sensitive logging, error leakage, CI/CD permissions, unsafe workflow input, dependency vulnerabilities, and integrity-sensitive operations where applicable.
-
-The project must identify context-dependent areas as human-review boundaries rather than claiming that they are completely automated.
+Context-dependent areas must remain human-review boundaries rather than being presented as completely automated.
 
 ## Language and Repository Requirements
 
-The gate shall detect applicable CodeQL-supported languages, including C/C++, C#, Go, Java/Kotlin, JavaScript/TypeScript, Python, Ruby, Rust, and Swift.
+The gate detects applicable CodeQL-supported languages, including C/C++, C#, Go, Java/Kotlin, JavaScript/TypeScript, Python, Ruby, Rust, and Swift.
 
 PHP and Scala are not supported by CodeQL in this MVP. Their presence must produce an explicit coverage boundary rather than a false PASS for CodeQL coverage.
 
-The gate shall detect common dependency manifests and only run ecosystem-specific audits when applicable.
-
-## Finding Requirements
-
-A high-confidence hard-coded password, credential, or privileged username detected by SecurePR policy is a blocking finding.
-
-Multiple tools may report the same underlying issue. SecurePR shall normalize identical SARIF findings using location, rule, and message for detailed evidence while preserving distinct findings.
+Common dependency manifests are detected and ecosystem-specific audits run only when applicable.
 
 ## Gate Requirements
 
@@ -68,7 +61,7 @@ Multiple tools may report the same underlying issue. SecurePR shall normalize id
 
 There is no third gate state.
 
-Every PASS and BLOCK remediation section shall state that human review is always recommended.
+Every PASS and BLOCK outcome shall state that human review is recommended.
 
 ## Human Review Boundary
 
@@ -76,23 +69,12 @@ Automated checks do not replace review of business logic, architecture, threat a
 
 ## Accuracy Requirement
 
-The controlled benchmark is a final validation activity. It must contain known vulnerable and known safe cases that are actually executed through the configured gate.
+A benchmark case requires a known expected result and an observed actual result.
 
-Record:
+A trusted reviewer may label a real PR with `securepr-expected-pass` or `securepr-expected-block`. SecurePR then reports the current PR's expected result, actual gate result, and classification in the Actions summary.
 
-- TP — vulnerable and blocked
-- FP — safe and blocked
-- TN — safe and passed
-- FN — vulnerable and passed
+Normal PRs without an expected-outcome label are not counted as TP, FP, TN, or FN.
 
-Calculate:
+The permanent benchmark ledger is `docs/accuracy/benchmark-results.csv`. It is deliberately updated only after labeled cases are executed and verified; ordinary PRs must not silently mutate it.
 
-`Precision = TP / (TP + FP)`
-
-`Recall = TP / (TP + FN)`
-
-`F1 = 2 × (Precision × Recall) / (Precision + Recall)`
-
-Every PR must report either that the benchmark is pending or the latest measured TP, FP, TN, precision, recall, and F1. Before the benchmark is executed, no universal accuracy percentage may be claimed.
-
-The final benchmark record should state its scope, tested categories, tool configuration, and limitations. Measurements describe the tested corpus and configuration, not universal detection accuracy.
+Measurements describe the labeled corpus and configuration, not universal real-world detection accuracy.
