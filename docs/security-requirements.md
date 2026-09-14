@@ -88,6 +88,8 @@ A benchmark case requires a known expected result and an observed actual result.
 
 A trusted reviewer may label a real PR with `securepr-expected-pass` or `securepr-expected-block`. SecurePR then reports the current PR's expected result, actual gate result, and classification in the Actions summary.
 
-The current reviewed benchmark contains 26 cases: 10 TP, 0 FP, 11 TN, and 5 FN. This produces 80.77% conventional classification accuracy, 100% precision, 66.67% recall, and 80.00% F1 for the controlled corpus.
+The current reviewed benchmark contains 37 cases: 15 TP, 0 FP, 16 TN, and 6 FN. This produces 83.78% conventional classification accuracy, 100% precision, 71.43% recall, and 83.33% F1 for the controlled corpus.
+
+PR #63 / Actions run #202 is the latest labeled PASS case. PR #64 / Actions run #203 is the latest labeled BLOCK case but returned PASS, so it is recorded as a false negative. The follow-up fix adds a Python AST-based credential assignment rule and is validated independently before merge.
 
 Normal PRs without an expected-outcome label are not counted as TP, FP, TN, or FN. Measurements describe the labeled corpus and configuration, not universal real-world detection accuracy.
