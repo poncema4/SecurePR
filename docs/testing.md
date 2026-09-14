@@ -67,7 +67,7 @@ For a controlled real-PR benchmark, a trusted reviewer adds exactly one expected
 - `securepr-expected-pass`
 - `securepr-expected-block`
 
-The Actions summary immediately reports the current PR's expected result, actual result, and whether the classification is correct. It also reports cumulative metrics from the committed benchmark CSV.
+The pull-request workflow listens for `labeled` as well as normal PR updates. Adding one of these labels triggers a fresh gate run, which reports the current PR's expected result, actual result, and whether the classification is correct. It also reports cumulative metrics from the committed benchmark CSV.
 
 This provides real-time measurement without allowing an arbitrary PR to redefine the ground truth.
 
