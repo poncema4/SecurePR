@@ -42,6 +42,7 @@ There is no third `REVIEW` gate state. Human review is recommended for both outc
 | Dependency audit | `pip-audit`, `npm audit` | Checks supported dependency ecosystems when their manifests are present | BLOCK on audit failure |
 | CodeQL | GitHub CodeQL `security-extended` | Performs semantic/data-flow security analysis for detected CodeQL-supported languages | BLOCK on initialization/analysis failure |
 | SARIF evaluation | SecurePR `summarize_sarif.py` | Aggregates SARIF security findings from scanner output | BLOCK when findings are reported |
+| OWASP category mapping | SecurePR `owasp_report.py` | Assigns individual SARIF findings to only the OWASP categories supported by their rule/CWE evidence | Category BLOCK only when a mapped finding exists |
 
 ## SecurePR Custom Rules
 
@@ -54,7 +55,7 @@ There is no third `REVIEW` gate state. Human review is recommended for both outc
 
 The hard-coded credential policy uses Semgrep's raw `regex` language for non-Python source files and a Python AST-based assignment rule for Python files. The Python rule is constrained to credential-like variable names and string literals of at least eight characters. This two-path design closes the validated manual false negative from PR #64 while preserving the raw-text coverage for non-Python files.
 
-The PR #64 regression was a synthetic `password = "demo_password"` assignment that returned PASS even though the expected outcome was BLOCK. It is retained in the benchmark as an FN rather than being reclassified. The follow-up fix is validated independently before merge.
+The PR #64 regression was a synthetic `password = "demo_password"` assignment that returned PASS even though the expected outcome was BLOCK. It is retained in the benchmark as an FN. PR #65 added the Python AST rule and validated the regression before merge; PR #67 then demonstrated the corrected BLOCK behavior and the subsequent PASS after the hardcoded password was removed.
 
 Tests, documentation, and SecurePR tooling are excluded from these application-source rules where configured by the workflow.
 
@@ -73,7 +74,7 @@ Semgrep is a complementary rule-based SAST engine. SecurePR runs both:
 1. Semgrep's `p/security-audit` rules.
 2. SecurePR's `.semgrep_securepr.yml` custom rules.
 
-A Semgrep failure or reported security finding contributes to the final `BLOCK` decision.
+A Semgrep failure or reported security finding contributes to the final `BLOCK` decision. A Semgrep result does **not** by itself block all OWASP categories; the OWASP table uses finding-level category mapping.
 
 ## Gitleaks
 
@@ -97,28 +98,43 @@ Native tool output remains available for diagnosis.
 
 ## OWASP Top 10:2025 Coverage
 
-OWASP Top 10:2025 is a **coverage framework**, not a separate SecurePR scanner. SecurePR maps the automated controls that actually run to applicable OWASP categories.
+OWASP Top 10:2025 is a **coverage framework**, not a separate SecurePR scanner. SecurePR now separates the **overall gate decision** from the **category result table**.
 
-| Category | Automated controls | Boundary |
+The overall gate remains unchanged:
+
+- `BLOCK` when any required blocking control fails or a blocking security finding remains.
+- `PASS` when all required blocking controls pass and no blocking security finding remains.
+
+The OWASP table is finding-driven:
+
+1. Each SARIF finding is inspected for an explicit OWASP tag, an OWASP-mapped CWE, or a SecurePR custom rule with a documented category mapping.
+2. SecurePR custom rule IDs are normalized to their final rule component so SARIF IDs such as `securepr-tooling.securepr-python-hardcoded-credential` still match the documented SecurePR rule mapping.
+3. A category is `BLOCK` only if one or more findings map to that category.
+4. A category is `PASS` when no mapped finding exists for that category in the run.
+5. An unmapped finding still affects the overall SecurePR gate but is not assigned to an OWASP category without sufficient evidence.
+
+This prevents the previous behavior where a single failed Semgrep control caused all ten rows to show `BLOCK`. For example, a hardcoded credential maps to A04/A07, while an unsafe `eval` finding maps to A05; neither should make unrelated categories red merely because Semgrep failed.
+
+| Category | Automated evidence mapping | Boundary |
 |---|---|---|
-| A01 Broken Access Control | CodeQL, Semgrep, project tests | Authorization intent and business logic require review |
-| A02 Security Misconfiguration | CodeQL, Semgrep | Deployment/environment configuration may require review |
-| A03 Software Supply Chain Failures | Dependency audit, CodeQL, Semgrep | Full build/distribution trust cannot be proven by these checks |
-| A04 Cryptographic Failures | CodeQL, Semgrep | Cryptographic design and context may require review |
-| A05 Injection | CodeQL, Semgrep, project tests | Runtime/framework behavior can exceed static coverage |
-| A06 Insecure Design | CodeQL, Semgrep, project tests + human review | Architecture, requirements, threat assumptions, and business logic require review |
-| A07 Authentication Failures | CodeQL, Semgrep, project tests | Correct authentication intent and operational controls require review |
-| A08 Software or Data Integrity Failures | CodeQL, dependency audit, Semgrep | End-to-end artifact and data trust may require review |
-| A09 Security Logging & Alerting Failures | CodeQL, Semgrep + human review | Operational monitoring effectiveness requires review |
-| A10 Mishandling of Exceptional Conditions | CodeQL, Semgrep, project tests | Complete runtime failure behavior cannot be established statically |
+| A01 Broken Access Control | OWASP/CWE mapping plus access-control-related SecurePR rules | Authorization intent and business logic require review |
+| A02 Security Misconfiguration | OWASP/CWE mapping plus configuration/TLS SecurePR rules | Deployment/environment configuration may require review |
+| A03 Software Supply Chain Failures | OWASP/CWE mapping for dependency/supply-chain findings | Dependency audit results remain part of the overall gate; full build/distribution trust cannot be proven by these checks |
+| A04 Cryptographic Failures | OWASP/CWE mapping plus credential/TLS SecurePR rules | Cryptographic design and context may require review |
+| A05 Injection | OWASP/CWE mapping plus unsafe-evaluation SecurePR rule | Runtime/framework behavior can exceed static coverage |
+| A06 Insecure Design | Explicitly mapped findings only; absence of a finding is not proof of secure design | Architecture, requirements, threat assumptions, and business logic require review |
+| A07 Authentication Failures | OWASP/CWE mapping plus credential/privileged-identity SecurePR rules | Correct authentication intent and operational controls require review |
+| A08 Software or Data Integrity Failures | OWASP/CWE mapping for integrity/deserialization/trusted-source findings | End-to-end artifact and data trust may require review |
+| A09 Security Logging & Alerting Failures | OWASP/CWE mapping for logging/alerting findings | Operational monitoring effectiveness requires review |
+| A10 Mishandling of Exceptional Conditions | OWASP/CWE mapping for error handling/failing-open findings | Complete runtime failure behavior cannot be established statically |
 
-A mapped category `PASS` means its listed automated controls passed. It does not prove the entire OWASP category is secure.
+A mapped category `PASS` means **no mapped automated finding was reported in that run**. It does not prove the entire OWASP category is secure. Human review remains required.
 
 ## Accuracy
 
 The controlled benchmark is a reviewed ground-truth corpus in `docs/accuracy/benchmark-results.csv`. It currently contains 37 labeled cases: 15 TP, 0 FP, 16 TN, and 6 FN. That corresponds to 83.78% conventional classification accuracy, 100% precision, 71.43% recall, and 83.33% F1 for this controlled corpus.
 
-PR #63 / Actions run #202 is the latest PASS benchmark case. PR #64 / Actions run #203 is the latest BLOCK-expected case and is recorded as an FN because the observed gate result was PASS. The credential-detection fix is validated independently before it is treated as production behavior.
+PR #63 / Actions run #202 is the latest PASS benchmark case in the committed CSV. PR #64 / Actions run #203 is recorded as an FN because the observed gate result was PASS. PR #65 added the Python credential-detection fix, and PR #67 subsequently validated the corrected hardcoded-password behavior. The OWASP reporting change does not alter the 37-case CSV because it changes category presentation, not the observed overall gate outcomes.
 
 These measurements describe the benchmark and its configuration only. They are not universal real-world accuracy claims. The six false negatives should be treated as evidence of the current benchmark's detection boundaries, not as permission to weaken precision merely to improve a metric.
 
