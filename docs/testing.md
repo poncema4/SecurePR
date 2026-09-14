@@ -1,6 +1,7 @@
 # SecurePR Testing Strategy
 
 ## Overview
+
 Testing must show that SecurePR can detect defined security problems, block unsafe pull requests, allow corrected changes to pass, operate against repositories other than the Flask demonstration target, and report its security coverage and accuracy limits honestly.
 
 ## Development-Time Tests
@@ -27,6 +28,7 @@ From the repository root:
 ```bash
 python -m pytest -q
 python -m compileall -q app security tests scripts
+python scripts/accuracy_report.py
 ```
 
 These checks validate the SecurePR implementation itself. GitHub Actions remains the authoritative environment for the complete gate because the workflows invoke CodeQL, Semgrep, Gitleaks, dependency audits, and GitHub-specific security reporting.
@@ -36,16 +38,20 @@ These checks validate the SecurePR implementation itself. GitHub Actions remains
 Use controlled synthetic examples only. Never commit real credentials or attack production systems.
 
 ### BLOCK test
+
 1. Create an isolated test change containing a known high-confidence security defect, such as a synthetic hard-coded credential that matches the SecurePR rule.
-2. Open or update a PR against `main`.
+2. Open or update one PR against `main`.
 3. Confirm the `SecurePR Security Gate` job reports `BLOCK`.
 4. Inspect the Check Results table and native tool output.
 
 ### PASS test
+
 1. Remove or remediate the synthetic defect on the **same branch and same PR**.
 2. Push the correction.
 3. Confirm the same gate reruns and reports `PASS` when all applicable controls pass.
 4. Confirm human-review guidance remains present.
+
+Do not create a second PR just to test the remediation path. The intended workflow is one PR with the fix pushed to that same branch.
 
 ## Reusable-Repository Testing
 
@@ -71,7 +77,7 @@ Do not assume every target receives identical checks. Repository profiling deter
 
 Accuracy must come from a controlled labeled benchmark, not from the fact that a normal PR passed.
 
-For each case, record the expected and actual gate result in `docs/accuracy/benchmark-results.csv`.
+For each deliberate benchmark case, record the expected and actual gate result in `docs/accuracy/benchmark-results.csv` after the corresponding GitHub Actions run has been verified.
 
 - **TP:** vulnerable case correctly blocked.
 - **FP:** safe case incorrectly blocked.
@@ -84,9 +90,13 @@ For each case, record the expected and actual gate result in `docs/accuracy/benc
 
 `F1 = 2 × (Precision × Recall) / (Precision + Recall)`
 
-An empty benchmark ledger intentionally produces `Benchmark pending — no accuracy percentage is claimed.` Once actual labeled cases are recorded, every PR reports the measured TP, FP, TN, precision, recall, and F1.
+The benchmark CSV is a labeled evidence ledger. It is **not** automatically appended by every ordinary PR. SecurePR cannot safely infer the expected ground-truth result for an arbitrary developer change, so benchmark rows must be deliberately created from controlled cases with known expected outcomes and then updated with the observed result.
 
-Do not claim 90% or 100% accuracy without measured results. The measurements describe the tested corpus and configuration only.
+The current benchmark contains four controlled cases: two expected BLOCK cases and two expected PASS cases. All four matched their expected outcomes.
+
+The accuracy report reads the committed CSV and makes the resulting measurements available to the local report and GitHub Actions summary. Adding future benchmark cases requires a deliberate benchmark test followed by a CSV update in the normal review workflow.
+
+Do not claim 90% or 100% universal accuracy from this benchmark. The current measured result describes the four-case tested corpus and its configuration.
 
 ## PASS/BLOCK and Human Review
 
