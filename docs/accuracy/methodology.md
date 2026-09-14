@@ -6,6 +6,8 @@ SecurePR measures the behavior of the **security harness and its configured mult
 
 The measurement evaluates the configured combination of repository profiling, project checks, security engines, SARIF evaluation, and final gate policy. It does not measure one scanner in isolation.
 
+The OWASP Top 10:2025 coverage table is a separate reporting layer. It does not change the overall PASS/BLOCK outcome used by the accuracy benchmark.
+
 ## Labeled benchmark cases
 
 `docs/accuracy/benchmark-results.csv` is the reviewed benchmark ledger. Each completed row contains:
@@ -36,6 +38,21 @@ Therefore:
 - F1: **83.33%**
 
 The six false negatives are part of the measured MVP behavior. They should be investigated as possible detection gaps or application-context limitations rather than hidden or reclassified solely to improve a metric. The newest false negative is PR #64 / Actions run #203, where a synthetic `password = "demo_password"` assignment was expected to BLOCK but the gate returned PASS.
+
+The Python AST credential-detection fix was validated after that benchmark case and is now part of `main`. PR #67 was an unlabeled manual validation and is intentionally not added to the benchmark CSV.
+
+## OWASP reporting semantics
+
+The benchmark's overall `actual` result remains the authoritative SecurePR gate outcome. OWASP category results are not additional benchmark classifications.
+
+The Actions summary reports each OWASP category independently from the SARIF findings that can be mapped to that category. A category is:
+
+- `BLOCK` when at least one SARIF finding is mapped to it through an explicit OWASP tag, an OWASP-mapped CWE, or a SecurePR custom rule.
+- `PASS` when no mapped automated finding is reported for that category in the run.
+
+A Semgrep or CodeQL step failure therefore does **not** fan out into ten OWASP `BLOCK` rows. Unmapped findings can still make the overall SecurePR gate `BLOCK`, but they are not assigned to an OWASP category without sufficient evidence.
+
+This reporting distinction does not imply complete OWASP coverage. A category `PASS` means no mapped automated finding was reported; it does not prove that the category is secure. Human review remains required.
 
 ## Real pull-request benchmark mode
 
@@ -70,6 +87,8 @@ The implementation returns `0` when a denominator is zero rather than inventing 
 The CSV is intentionally not appended on every ordinary PR. SecurePR cannot safely infer the expected outcome of arbitrary developer changes, and allowing arbitrary PRs to mutate the accuracy ledger would make the measurement easy to manipulate.
 
 After a labeled benchmark PR has been executed and verified, record the case in the CSV through a normal reviewed change. Use a distinct case identifier for each deliberate benchmark case so the measurement history remains auditable.
+
+The OWASP reporting correction does not change the 37 historical gate outcomes, so no CSV row is added or rewritten for this PR.
 
 ## Interpretation
 
