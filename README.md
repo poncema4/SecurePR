@@ -73,7 +73,7 @@ Repository tests and type checks validate behavior that static analysis cannot r
 SARIF-producing security checks are evaluated for findings. SecurePR keeps a machine-readable evidence artifact for the detailed findings while the user-facing summary stays focused on the PASS/BLOCK decision, check results, OWASP coverage, remediation, accuracy, and human review.
 
 ## OWASP Top 10:2025 Coverage
-SecurePR uses the official OWASP Top 10:2025 categories as a **coverage framework**, not as ten claims of complete automated detection. OWASP itself states that the Top 10 is an awareness document and that tools cannot comprehensively detect or protect against all Top 10 risks, particularly insecure design. citeturn0search0turn0search9
+SecurePR uses the official OWASP Top 10:2025 categories as a **coverage framework**, not as ten claims of complete automated detection. The official OWASP project describes the Top 10 as an awareness document and explicitly notes that tools cannot comprehensively detect or protect against all Top 10 risks, particularly insecure design.
 
 The workflow maps applicable automated controls to:
 
@@ -90,7 +90,7 @@ The workflow maps applicable automated controls to:
 | A09 Security Logging & Alerting Failures | CodeQL/Semgrep for detectable logging and alerting patterns plus human review of operational coverage |
 | A10 Mishandling of Exceptional Conditions | CodeQL, Semgrep, and project tests for detectable error, exception, and fail-open patterns |
 
-A green row means the mapped automated controls completed without a blocking result. It does **not** mean the entire OWASP category is proven secure. The current OWASP Top 10:2025 list and category definitions are maintained by OWASP. citeturn0search0turn0search1
+A green row means the mapped automated controls completed without a blocking result. It does **not** mean the entire OWASP category is proven secure.
 
 ## PASS/BLOCK Reporting
 The GitHub Actions job is named **`SecurePR Security Gate`** and produces exactly two gate outcomes.
