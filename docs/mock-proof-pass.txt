@@ -1,0 +1,1 @@
+Controlled MVP proof fixture: this file contains no security finding and should remain PASS.
