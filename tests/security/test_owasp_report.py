@@ -10,6 +10,14 @@ def test_hardcoded_credential_maps_only_to_relevant_categories() -> None:
     assert categories_for_finding("Semgrep", result) == {"A04", "A07"}
 
 
+def test_hardcoded_credential_remediation_text_does_not_add_a08() -> None:
+    result = {
+        "ruleId": "securepr-python-hardcoded-credential",
+        "message": {"text": "Hard-coded password or credential value detected; use an approved secret-management mechanism instead."},
+    }
+    assert categories_for_finding("Semgrep", result) == {"A04", "A07"}
+
+
 def test_command_injection_maps_to_injection() -> None:
     result = {"ruleId": "py/command-line-injection", "message": {"text": "Uncontrolled command line"}}
     assert categories_for_finding("CodeQL", result) == {"A05"}
