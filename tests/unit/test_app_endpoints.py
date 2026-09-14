@@ -1,4 +1,4 @@
-from app.app import app
+from app.app import ADMIN_PASSWORD, DEMO_PASSWORD, app
 
 
 def client():
@@ -17,7 +17,7 @@ def test_home_endpoint():
 def test_valid_login_returns_authenticated_response():
     response = client().post(
         "/login",
-        json={"username": "demo", "password": "securepr-demo-password"},
+        json={"username": "demo", "password": DEMO_PASSWORD},
     )
     assert response.status_code == 200
     assert response.get_json() == {"authenticated": True, "username": "demo"}
@@ -26,7 +26,7 @@ def test_valid_login_returns_authenticated_response():
 def test_admin_login_returns_authenticated_response():
     response = client().post(
         "/login",
-        json={"username": "admin", "password": "securepr-admin-password"},
+        json={"username": "admin", "password": ADMIN_PASSWORD},
     )
     assert response.status_code == 200
     assert response.get_json()["username"] == "admin"
@@ -52,7 +52,7 @@ def test_login_rejects_unknown_user():
 def test_login_rejects_non_string_username():
     response = client().post(
         "/login",
-        json={"username": 123, "password": "securepr-demo-password"},
+        json={"username": 123, "password": DEMO_PASSWORD},
     )
     assert response.status_code == 400
 

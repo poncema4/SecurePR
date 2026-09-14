@@ -1,101 +1,98 @@
 # SecurePR Security Requirements
 
-## 1. Purpose
+## Overview
+SecurePR evaluates pull-request changes using layered security controls. The gate is reusable across the user's own repositories and is not limited to the Phase 2 Python sample application.
 
-SecurePR is a pull-request security gate for a small Python application. The project evaluates whether repeatable security controls can be placed into the development workflow before vulnerable changes are merged.
+These requirements define intended automated coverage. They are not a claim that automation can prove every security property.
 
-These requirements define what the gate is expected to check. They are project requirements, not a claim that automated tooling can identify every possible vulnerability.
-
-## 2. Security Objectives
+## Core Requirements
 
 SecurePR shall:
 
-1. Detect selected security defects in pull-request changes before merge.
-2. Detect committed secrets and credential-like material using automated secret scanning.
-3. Identify known vulnerable dependencies used by the sample application.
-4. Run security-focused automated tests that verify required security behavior.
-5. Analyze source code for selected vulnerability classes using SAST tools.
-6. Evaluate security-relevant GitHub Actions configuration and permissions where practical.
-7. Produce a clear `PASS` or `BLOCK` decision based on defined gate conditions.
-8. Provide enough output to explain why a change was blocked and how the issue can be remediated.
-9. Keep intentionally vulnerable demonstration material synthetic and non-sensitive.
-10. Make the checks reproducible locally and in GitHub Actions where the selected tool supports both environments.
+1. Detect selected security defects before merge.
+2. Detect exposed secrets and credential-like material.
+3. Analyze supported programming languages with applicable SAST tooling.
+4. Audit supported dependency ecosystems when a relevant manifest exists.
+5. Run applicable security and correctness tests.
+6. Analyze security-relevant CI/CD configuration where practical.
+7. Map implemented coverage to OWASP Top 10:2025 and related secure-coding principles.
+8. Detect high-confidence hard-coded credentials and privileged identity values.
+9. Aggregate duplicate scanner findings into one meaningful result without hiding distinct findings.
+10. Produce exactly one overall `PASS` or `BLOCK` decision.
+11. Explain blocking results and remediation steps.
+12. Always recommend human review in PASS and BLOCK remediation guidance.
+13. Never automatically modify source code, rotate credentials, or merge a pull request.
+14. Report unsupported or unavailable analysis coverage rather than silently treating it as secure.
+15. Remain reusable across the user's own repositories without requiring GitHub Marketplace publication.
+16. Provide a controlled final accuracy benchmark using TP, FP, TN, precision, recall, and F1.
+17. Report the current accuracy-benchmark status on every PR without claiming unmeasured accuracy.
 
-## 3. Functional Security Requirements
+## OWASP Top 10:2025 Coverage Model
 
-### SR-01 — Secret Detection
+The Phase 4 coverage model includes:
 
-The gate shall scan the repository and pull-request changes for exposed secrets, including API keys, cloud credentials, tokens, passwords, private keys, connection strings, and other credential-like material that the selected scanner can detect.
+- A01 Broken Access Control
+- A02 Security Misconfiguration
+- A03 Software Supply Chain Failures
+- A04 Cryptographic Failures
+- A05 Injection
+- A06 Insecure Design
+- A07 Authentication Failures
+- A08 Software or Data Integrity Failures
+- A09 Security Logging & Alerting Failures
+- A10 Mishandling of Exceptional Conditions
 
-**Phase 3 verification:** A synthetic AWS-style access key was detected by Gitleaks under its `aws-access-token` rule, causing the Secret Detection step to fail and the overall gate to BLOCK.
+Additional secure-coding concerns include secrets, SQL/command/template injection, XSS, SSRF, unsafe deserialization, path traversal, weak cryptography, disabled TLS verification, sensitive logging, error leakage, CI/CD permissions, unsafe workflow input, dependency vulnerabilities, and integrity-sensitive operations where applicable.
 
-### SR-02 — Source-Code Security Analysis
+The project must identify context-dependent areas as human-review boundaries rather than claiming that they are completely automated.
 
-The gate shall analyze Python source code for selected security-relevant weaknesses, including injection, unsafe command execution, path traversal, unsafe deserialization, insecure data flow, and other applicable findings supported by the selected SAST rules.
+## Language and Repository Requirements
 
-**Phase 3 verification:** Semgrep and CodeQL completed successfully in the controlled secret and corrected demonstrations. This phase did not claim that a new SAST vulnerability class was specifically demonstrated.
+The gate shall detect applicable CodeQL-supported languages, including C/C++, C#, Go, Java/Kotlin, JavaScript/TypeScript, Python, Ruby, Rust, and Swift.
 
-### SR-03 — Dependency Security
+PHP and Scala are not supported by CodeQL in this MVP. Their presence must produce an explicit coverage boundary rather than a false PASS for CodeQL coverage.
 
-The gate shall check Python dependencies for known vulnerabilities. Dependency changes introduced by a pull request should also be reviewable through dependency-diff controls where GitHub provides the required support.
+The gate shall detect common dependency manifests and only run ecosystem-specific audits when applicable.
 
-**Phase 3 verification:** pip-audit passed the vulnerable-secret and corrected demonstration runs because neither demonstration changed the dependency set. The project dependency baseline was also updated after the earlier pytest 8.4.2 vulnerability was identified.
+## Finding Requirements
 
-### SR-04 — Security Tests
+A high-confidence hard-coded password, credential, or privileged username detected by SecurePR policy is a blocking finding.
 
-The project shall include pytest-based tests for security behavior that static analysis cannot reliably establish, including applicable authentication, authorization, input-validation, error-handling, and regression requirements.
+Multiple tools may report the same underlying issue. SecurePR shall normalize identical SARIF findings using location, rule, and message so the developer sees one meaningful finding while detailed tool logs remain available. Distinct findings at the same location must remain distinct.
 
-**Phase 3 verification:** Security Tests passed in the vulnerable-secret and corrected demonstration runs.
+## Gate Requirements
 
-### SR-05 — Cryptographic Security
+`PASS` requires every configured blocking control to succeed and no blocking normalized finding to remain.
 
-The gate shall identify applicable insecure cryptographic practices, such as weak security-sensitive hashes, insecure random generation, hardcoded cryptographic material, and disabled TLS verification, to the extent supported by the selected analysis rules.
+`BLOCK` occurs when a configured blocking control fails or a blocking normalized finding remains.
 
-### SR-06 — Configuration Security
+There is no third gate state.
 
-The gate shall check applicable application and CI configuration for insecure defaults, debug settings, unsafe permissions, and other defined configuration requirements.
+Every PASS and BLOCK remediation section shall state that human review is always recommended.
 
-### SR-07 — Logging and Error Handling
+## Human Review Boundary
 
-The gate shall check applicable source code and tests for sensitive information being exposed through logs or error responses and for unsafe error-handling behavior such as fail-open or information-leaking behavior.
+Automated checks do not replace review of business logic, architecture, threat assumptions, authorization intent, deployment context, or other context-dependent security decisions. A PASS is not proof of zero vulnerabilities.
 
-### SR-08 — CI/CD Workflow Security
+## Accuracy Requirement
 
-The gate shall review security-relevant GitHub Actions configuration, including least-privilege token permissions, unsafe handling of untrusted pull-request input, unsafe shell interpolation, secret exposure, dangerous workflow triggers, and use of third-party actions where practical.
+At the end of Phase 4, SecurePR shall execute a controlled benchmark containing known vulnerable and known safe cases.
 
-### SR-09 — Data and Integrity Security
+Record:
 
-The gate shall address applicable risks involving untrusted data, unsafe deserialization, untrusted code or modules, and integrity-sensitive operations.
+- TP — vulnerable and blocked
+- FP — safe and blocked
+- TN — safe and passed
+- FN — vulnerable and passed
 
-### SR-10 — Container Security
+Calculate:
 
-If Docker remains part of the implemented application, container configuration shall be reviewed for applicable security issues such as root execution, unsafe privileges, secrets in images, and vulnerable base or installed packages. Container scanning is conditional on Docker being part of the final implementation.
+`Precision = TP / (TP + FP)`
 
-## 4. Gate Requirements
+`Recall = TP / (TP + FN)`
 
-A pull request shall be considered `BLOCK` when a defined blocking control fails. A pull request shall be considered `PASS` only when all configured blocking controls complete successfully and no blocking result remains.
+`F1 = 2 × (Precision × Recall) / (Precision + Recall)`
 
-Phase 3 implements one authoritative `SecurePR Security Gate` job. The job contains these configured control steps:
+Every PR must report either that the benchmark is pending or the latest measured TP, FP, TN, precision, recall, and F1. Before the benchmark is executed, no universal accuracy percentage may be claimed.
 
-1. Python runtime policy
-2. Dependency installation
-3. Security tests and Python compilation
-4. Secret Detection with Gitleaks
-5. Semgrep SAST
-6. Dependency Audit with pip-audit
-7. CodeQL initialization
-8. CodeQL analysis
-
-The final workflow step evaluates these outcomes and publishes the single PASS/BLOCK result. CodeQL also uploads analysis results to GitHub Code Scanning; that reporting surface is not a second SecurePR job or required SecurePR check.
-
-The controlled vulnerable-secret demonstration produced a failed Secret Detection result and an overall BLOCK. The corrected demonstration produced successful configured controls and an overall PASS.
-
-## 5. Human Review Boundary
-
-SecurePR shall document that automated checks are not a replacement for human security review. Business-logic flaws, many authorization decisions, architectural weaknesses, and other context-dependent issues may require tests, threat modeling, or manual review.
-
-## 6. Demonstration Requirement
-
-The completed project shall demonstrate at least one intentionally vulnerable pull request that is blocked by the security gate and a corrected version that passes. Demonstration secrets and credentials must be fake and must never be usable credentials.
-
-Phase 3 verified this requirement with two separate demonstration pull requests. The vulnerable PR remained unmerged, and the corrected PR was also left unmerged so `main` remained clean.
+The final report must state the benchmark scope, tested categories, tool configuration, and limitations. Measurements describe the tested corpus and configuration, not universal detection accuracy.

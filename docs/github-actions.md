@@ -1,158 +1,93 @@
 # GitHub Actions and SecurePR Security Gate
 
 ## Purpose
+SecurePR uses GitHub Actions to run automated security controls for pull requests targeting `main` and for post-merge `main` verification.
 
-SecurePR uses GitHub Actions to run the project's automated security controls whenever a pull request targets `main` and whenever a new commit is pushed to `main`. The workflow is designed to provide one authoritative PR gate while keeping the individual security tools visible in the Actions log.
+The authoritative entry workflow is `.github/workflows/security.yml`. It calls `.github/workflows/reusable-security.yml`, which contains the reusable security-gate implementation.
 
-The workflow is defined in `.github/workflows/security.yml`.
+## One-job architecture
 
-## Workflow architecture
+The SecurePR repository keeps one job named `SecurePR Security Gate`. Individual tools run as steps inside that job so the PR has one authoritative required gate rather than many required tool checks.
 
-Phase 3 uses **one GitHub Actions job** named `SecurePR Security Gate`. The security tools are separate steps inside that job rather than separate jobs.
+The reusable implementation includes repository profiling, applicable project checks, Gitleaks, Semgrep, dependency auditing, CodeQL, normalized SARIF finding aggregation, per-run accuracy status, and final PASS/BLOCK reporting.
 
-The current sequence is:
+## SecurePR versus CodeQL
 
-1. **Checkout repository** — retrieves the repository, including history needed by security tooling.
-2. **Set up Python** — uses Python 3.12 for the CI environment.
-3. **Python runtime policy** — verifies that the repository's declared/resolved runtime is within SecurePR's supported Python policy.
-4. **Install project dependencies** — installs the dependencies declared in `requirements.txt`.
-5. **Security tests** — runs the pytest security test suite and Python compilation checks.
-6. **Secret detection** — runs Gitleaks to look for committed credentials and other secret material.
-7. **Semgrep SAST** — runs Semgrep Python/security rules to identify source-code security patterns.
-8. **Dependency audit** — runs `pip-audit` against the declared Python dependencies.
-9. **CodeQL analysis** — initializes CodeQL with the Python language and the `security-extended` query set.
-10. **Perform CodeQL analysis** — completes the CodeQL analysis and uploads the results to GitHub's code-scanning system.
-11. **Publish SecurePR result** — evaluates the configured control outcomes and publishes the final PASS/BLOCK summary.
+`SecurePR Security Gate` is the project's harness and policy layer. CodeQL is one analysis engine inside it.
 
-The gate is conservative: a failure of a required control results in `BLOCK`. SecurePR does not automatically modify source code, rotate credentials, dismiss findings, or merge a pull request.
+CodeQL performs semantic source-code security analysis for supported languages and uploads results to GitHub Code Scanning. Code Scanning is an additional reporting surface, not a second SecurePR job.
 
-## SecurePR Security Gate vs. CodeQL Code Scanning
+SecurePR combines CodeQL with Semgrep, Gitleaks, dependency audits, project tests, repository profiling, and its own policy rules.
 
-These are related, but they are **not two SecurePR jobs**.
+## Reusable workflow
 
-### SecurePR Security Gate
+Other repositories can call the reusable workflow from this repository without installing a GitHub Marketplace product. The called workflow checks out the target repository, checks out the SecurePR tooling at the requested ref, profiles the target repository, runs applicable controls, reports the current accuracy-benchmark status, and publishes the same PASS/BLOCK gate.
 
-`SecurePR Security Gate` is the project's authoritative required status check for protected `main`. It evaluates the outcomes of the configured controls and produces the final overall PASS or BLOCK result.
+The SecurePR repository itself calls the same reusable workflow using the Phase 4 PR commit for its tooling, so the PR tests the implementation under review rather than an older `main` copy.
 
-The required branch rule is tied to this one job. The goal is to give a pull request one clear merge-gating result instead of requiring every security tool to appear as an independent required check.
+The MVP is intentionally limited to the user's own repositories. Public Marketplace packaging is outside Phase 4.
 
-### CodeQL
+## Accuracy status on every PR
 
-CodeQL is one of the security-analysis controls executed inside the SecurePR job. It performs semantic source-code analysis for the Python application and uploads its analysis results to **GitHub Code Scanning**.
+Every PR includes an accuracy section in the Actions summary.
 
-GitHub Code Scanning is therefore an additional reporting and analysis surface for CodeQL results. Seeing a CodeQL or Code Scanning result in the GitHub interface does **not** mean that SecurePR created a second job.
+- Before the final benchmark is executed: `Benchmark pending — no accuracy percentage is claimed.`
+- After the benchmark results are recorded: the latest TP, FP, TN, precision, recall, and F1 are reported.
 
-A successful CodeQL analysis step means the configured analysis completed successfully. It is not proof that the application contains no vulnerabilities. CodeQL findings still require review and remediation when applicable.
+This status is informational and does not substitute for the final controlled benchmark. It prevents SecurePR from inventing an accuracy percentage while still making the current measurement state visible on every PR.
 
-## Why GitHub displays `SecurePR Security Gate / SecurePR Security Gate`
+## PASS/BLOCK
 
-GitHub displays workflow and job names together in some pull-request status views. The first name identifies the workflow, while the second identifies the job inside that workflow.
+There are only two gate outcomes:
 
-SecurePR intentionally uses the same name for both:
+- **PASS:** all configured blocking controls pass and no blocking normalized finding remains.
+- **BLOCK:** at least one configured blocking control fails or a blocking normalized finding remains.
 
-```text
-Workflow: SecurePR Security Gate
-Job:      SecurePR Security Gate
-```
+Every outcome states that human review is always recommended. SecurePR never automatically edits source code, rotates credentials, dismisses findings, or merges a PR.
 
-This can appear as:
+## Finding aggregation
+
+Semgrep and CodeQL produce SARIF results. SecurePR normalizes identical findings using location, rule, and message so the summary can present one meaningful issue rather than multiple copies. Tool names remain visible in the normalized summary. Distinct findings at the same file and line are not collapsed merely because they share a location.
+
+## Pull request versus main
+
+A successful PR run is not a guarantee that the post-merge `main` run will pass. The two executions can differ in commit context and repository state.
+
+The required workflow therefore runs on both:
 
 ```text
-SecurePR Security Gate / SecurePR Security Gate (pull_request)
+PR → SecurePR PASS → human review → merge
+                                      ↓
+                              push to main
+                                      ↓
+                              SecurePR reruns
+                                      ↓
+                              main independently verified
 ```
 
-This does **not** represent two security-gate jobs. The workflow contains one job, and all of the individual security controls run as steps within that job.
+Final Phase 4 completion requires the post-merge `main` run to pass.
 
-## Pull-request checks and post-merge checks
+## Development workflow
 
-The workflow has two triggers:
-
-```yaml
-on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
-```
-
-The `pull_request` trigger validates a proposed change before it is merged into `main`. This is the run that satisfies the required `SecurePR Security Gate` branch rule.
-
-The `push` trigger runs again when a commit reaches `main`. This second run is intentional. It verifies the actual resulting `main` branch state after the merge rather than relying only on the earlier PR revision.
-
-Therefore, a normal successful merge can produce two relevant workflow runs:
-
-```text
-Pull request
-    ↓
-SecurePR Security Gate
-    ↓
-PASS
-    ↓
-PR may be merged
-    ↓
-commit reaches main
-    ↓
-SecurePR Security Gate runs again
-    ↓
-main is independently verified
-```
-
-The workflow also uses concurrency cancellation so obsolete runs for the same PR/ref can be cancelled when a newer change supersedes them.
-
-## PASS and BLOCK behavior
-
-### PASS
-
-A PASS means all configured required controls completed successfully for that run. The final summary reports the check results and states that no blocking fixes are required. Human review is still required before merge.
-
-### BLOCK
-
-A BLOCK means at least one configured required control did not pass. The final summary identifies the failed control and provides:
-
-- why the control failed;
-- why the result matters;
-- what the developer should fix;
-- the expected result after the fix; and
-- the remediation policy and accuracy boundary.
-
-The developer then fixes the pull request and pushes the change. SecurePR runs again against the updated revision.
-
-## Typical development workflow
-
-SecurePR does not require a separate pull request for every commit. For normal Phase 4 and later development, work should be completed and tested on a feature branch first. Multiple related commits can be made on that branch, followed by one consolidated pull request into `main`.
-
-Recommended workflow:
+For Phase 4 and later, use one feature branch for the entire phase and one consolidated PR into `main`.
 
 ```text
 feature branch
     ↓
-implement related changes
+implement entire phase
     ↓
-run local tests and security checks
+local validation
     ↓
-open one consolidated PR
+documentation audit
     ↓
-SecurePR Security Gate
+one consolidated PR
     ↓
-PASS → review and merge
-BLOCK → fix and rerun
+SecurePR PASS/BLOCK
+    ↓
+PASS → human review → merge
+BLOCK → fix same branch/PR → rerun
+    ↓
+post-merge main verification
 ```
 
-This keeps the pull-request history focused while still using SecurePR as the final automated security gate before merge.
-
-## Phase 3 validation
-
-Phase 3 was validated with both a known-bad synthetic example and a clean example.
-
-- A vulnerable PR containing a synthetic AWS-style credential pattern was detected by Gitleaks and produced a final SecurePR BLOCK. An attempted merge was rejected because the required `SecurePR Security Gate` check was failing.
-- A clean PR from the final protected `main` baseline passed the configured controls and was recognized by GitHub as mergeable.
-
-These tests demonstrate both the intended PASS/BLOCK behavior and actual protected-branch enforcement. The synthetic secret was not a real credential and was not merged into `main`.
-
-## Accuracy and security boundary
-
-SecurePR is a layered security gate, not a proof that a repository is vulnerability-free. Static analysis and secret detection can produce false positives and can miss vulnerabilities involving runtime behavior, business logic, configuration, unavailable code paths, or patterns outside a tool's coverage.
-
-A PASS means the configured automated controls passed for that revision. It does not eliminate the need for human review, secure design review, dependency judgment, or application-specific testing.
-
-SecurePR deliberately does not perform automatic remediation or automatic merging. Security findings and code changes remain subject to developer and reviewer judgment.
+Do not create multiple PRs for one phase.

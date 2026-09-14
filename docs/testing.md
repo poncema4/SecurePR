@@ -1,176 +1,91 @@
 # SecurePR Testing Strategy
 
-## 1. Testing Goals
+## Overview
+Testing must show that SecurePR can detect defined security problems, block unsafe pull requests, allow corrected changes to pass, operate against repositories other than the Flask sample, and report its security coverage and accuracy limits honestly.
 
-Testing must show that SecurePR can:
+## Development-Time Tests
 
-1. Detect defined security problems.
-2. Block a pull request when a required blocking control fails.
-3. Allow a corrected pull request to pass.
-4. Produce reproducible results from actual tool execution rather than assumed results.
-5. Produce one clear overall PR decision while preserving detailed tool logs for diagnosis.
+During implementation, run targeted tests for changed scripts and configuration so broken code is not knowingly committed. These are development checks, not the final Phase 4 accuracy claim.
 
-## 2. Test Levels
+Current Phase 4 test areas include:
 
-### Unit Tests
+- repository/language detection
+- unsupported-language detection
+- SARIF parsing and conservative normalized finding keys
+- custom SecurePR Semgrep configuration
+- accuracy-metric formula implementation
+- per-run accuracy status reporting
+- existing Flask security tests
+- workflow YAML/configuration consistency
 
-Test application and security-related functions independently.
+A finding normalization test must prove both that identical cross-tool findings can be grouped and that distinct findings at the same file/line are not incorrectly collapsed.
 
-### Security Tests
+## Final Phase 4 Validation
 
-Exercise authentication, authorization, input validation, error handling, and other security properties that scanners cannot reliably prove.
+The comprehensive validation occurs **at the end of Phase 4**, after implementation and documentation are stable.
 
-### Integration Tests
+The final sequence is:
 
-Verify interactions between the application, security checks, and gate logic where required.
+1. Local verification of the complete repository.
+2. Validate workflow configuration and reusable workflow integration.
+3. Run the consolidated Phase 4 PR through the SecurePR gate.
+4. Exercise the reusable workflow against SecurePR, CookieGuard, and NetDefender using their actual supported languages/artifacts.
+5. Create controlled vulnerable cases for applicable security controls.
+6. Verify those vulnerable cases are blocked.
+7. Correct them and verify PASS.
+8. Test safe edge cases to identify false positives.
+9. Test known vulnerable cases that are difficult for the configured tools to detect to measure false negatives.
+10. Record every benchmark case and expected classification.
+11. Calculate TP, FP, TN, precision, recall, and F1.
+12. Record the tested categories, tool configuration, limitations, and coverage boundaries.
+13. Audit all documentation against the final implementation and measurements.
+14. Merge the one consolidated Phase 4 PR.
+15. Verify the post-merge `main` workflow passes.
 
-### Tool Verification
+## Accuracy Metrics
 
-Run CodeQL, Semgrep, Gitleaks, pip-audit, and applicable workflow checks against the actual repository and record their real results.
+For the controlled benchmark:
 
-### Workflow Tests
+- **TP:** vulnerable case correctly blocked.
+- **FP:** safe case incorrectly blocked.
+- **TN:** safe case correctly passed.
+- **FN:** vulnerable case incorrectly passed.
 
-Verify that GitHub Actions starts on the intended events, executes required controls, produces one overall PASS/BLOCK result, and preserves enough step-level detail to diagnose a failure.
+`Precision = TP / (TP + FP)`
 
-## 3. Phase 3 Baseline Result
+`Recall = TP / (TP + FN)`
 
-The Phase 3 implementation was verified in GitHub Actions. The configured controls passed, and the single `SecurePR Security Gate` job passed on the clean implementation PR.
+`F1 = 2 × (Precision × Recall) / (Precision + Recall)`
 
-| Control | Clean baseline / corrected result |
-|---|---|
-| Python runtime policy | PASS |
-| Dependency installation | PASS |
-| Security Tests | PASS |
-| Gitleaks Secret Detection | PASS |
-| Semgrep SAST | PASS |
-| pip-audit Dependency Audit | PASS |
-| CodeQL initialization and analysis | PASS |
-| SecurePR Security Gate | PASS |
+Every PR reports the current benchmark status. Before the final benchmark exists, the status is explicitly **Benchmark pending — no accuracy percentage is claimed**. After benchmark results are committed, every PR reports the latest measured TP, FP, TN, precision, recall, and F1.
 
-The local Windows PowerShell verification was also executed using `.venv` and produced `8 passed`.
+Do not claim 90% or 100% accuracy without measured results. If the benchmark produces lower or higher values, report the actual result and explain the corpus limitations.
 
-The post-merge `main` workflow was then independently verified and completed successfully, confirming that the resulting `main` branch remained healthy after the documentation update.
+## PASS/BLOCK and Human Review
 
-## 4. Phase 3 Vulnerable Demonstration
+There are exactly two gate outcomes:
 
-A separate pull request intentionally committed a synthetic AWS-style access key to `demo/intentional-secret.py`.
+- `PASS` — configured blocking controls passed and no blocking normalized finding remains.
+- `BLOCK` — at least one configured blocking control failed or a blocking normalized finding remains.
 
-The actual workflow result was:
+There is no separate `REVIEW` gate state. Human review is always recommended for both outcomes, especially for business logic, design, authorization intent, architecture, and findings that may be false positives.
 
-| Control | Vulnerable demonstration |
-|---|---|
-| Security Tests | PASS |
-| Gitleaks Secret Detection | FAIL — synthetic secret detected |
-| Semgrep SAST | PASS |
-| pip-audit Dependency Audit | PASS |
-| CodeQL | PASS |
-| SecurePR Security Gate | FAIL / BLOCK |
+## PR Versus Main
 
-Gitleaks reported the finding under its `aws-access-token` rule. The value was fake and non-sensitive. The failed Secret Detection control caused the SecurePR gate to block as designed.
+A passing PR does not guarantee that the post-merge `main` workflow will pass. The PR run and push-to-main run are separate executions. Final validation therefore requires both.
 
-The vulnerable pull request was not merged.
+## One-PR Phase Workflow
 
-## 5. Phase 3 Corrected Demonstration
+Phase 4 uses one feature branch and one consolidated PR. If a check fails, fix the same branch and same PR. Do not create another PR for the phase. Before merge, audit all relevant implementation and documentation again.
 
-A separate clean branch was created from `main` so the corrected demonstration did not retain the vulnerable secret in its commit history. The corrected example used an environment variable rather than committing a credential value.
+## Safety
 
-The actual workflow result was:
+- Use synthetic secrets only.
+- Never use real API keys, passwords, tokens, private keys, or cloud credentials.
+- Keep intentionally vulnerable examples isolated and controlled.
+- Do not test production systems.
+- Do not automatically exploit discovered vulnerabilities.
 
-| Control | Corrected demonstration |
-|---|---|
-| Security Tests | PASS |
-| Gitleaks Secret Detection | PASS |
-| Semgrep SAST | PASS |
-| pip-audit Dependency Audit | PASS |
-| CodeQL | PASS |
-| SecurePR Security Gate | PASS |
+## Completion Criteria
 
-The corrected pull request was also not merged, preserving a clean `main` baseline.
-
-## 6. Accuracy and False-Positive / False-Negative Testing
-
-SecurePR does not claim perfect detection accuracy.
-
-A false positive is a finding where a scanner reports a suspicious pattern that is actually safe. A false negative is a vulnerability that exists but is not detected by the configured controls. Both matter to a security gate.
-
-Phase 3 handles this by:
-
-- Layering Gitleaks, Semgrep, CodeQL, pip-audit, and pytest rather than relying on one tool.
-- Using controlled vulnerable examples to verify that an expected finding is actually blocked.
-- Using corrected examples to verify that a safe remediation passes.
-- Keeping real secrets out of demonstrations.
-- Treating a blocking scanner result as a review requirement, not as proof that the scanner is infallible.
-- Requiring human review for business logic, design decisions, and findings that may be false positives.
-
-A passing SecurePR result means the configured checks passed. It does not prove that the application has zero vulnerabilities.
-
-## 7. Remediation and Merge Safety
-
-SecurePR does not automatically edit the PR or merge it into `main`.
-
-The intended remediation loop is:
-
-```text
-Finding
-  ↓
-SecurePR reports the failed control
-  ↓
-Developer/reviewer inspects the finding
-  ↓
-Fix is committed to the PR
-  ↓
-SecurePR runs again
-  ↓
-PASS → eligible for normal human merge review
-BLOCK → investigate and fix
-```
-
-This avoids silently applying an incorrect fix to a false positive and avoids automatically merging code that has not received human review.
-
-If an explicit remediation-assistance feature is added later, it must require a user action and the resulting change must pass SecurePR before it can be merged.
-
-## 8. Safety Requirements
-
-- Use fake secrets only.
-- Never use real API keys, passwords, private keys, tokens, or cloud credentials in demonstrations.
-- Keep vulnerable demonstrations limited to the sample application and repository.
-- Do not scan or attack production systems.
-- Avoid creating vulnerabilities that could affect unrelated users or infrastructure.
-- When a secret is detected, do not attempt to reuse it or treat it as a credential.
-
-## 9. Evidence
-
-Verified Phase 3 evidence includes:
-
-- Clean baseline workflow
-- Local `.venv` verification result
-- Gitleaks secret-detection failure
-- Gitleaks finding details for the synthetic AWS-style credential
-- `BLOCK` SecurePR result
-- Corrected pull-request workflow
-- `PASS` SecurePR result
-- Relevant GitHub Actions job results and logs
-- Post-merge `main` workflow verification
-
-Screenshots can be collected from these completed runs for the final report and presentation.
-
-## 10. Completion Criteria
-
-Phase 1 is complete when requirements, architecture, security coverage, threat model, and testing strategy are documented consistently with the planned MVP.
-
-Phase 2 is complete when the sample application, tests, local setup, and baseline security workflow are implemented and the required baseline controls pass.
-
-Phase 3 is complete when:
-
-- One consolidated SecurePR Security Gate job runs the configured controls.
-- The pull request receives one clear PASS/BLOCK result.
-- A failed control is still visible with enough step-level detail to diagnose it.
-- An intentionally vulnerable pull request is actually detected and blocked.
-- A corrected pull request actually passes.
-- The workflow does not automatically modify or merge source code.
-- False-positive and false-negative limitations are documented honestly.
-- The clean `main` baseline remains intact.
-- Temporary demonstration branches are removed after testing where repository permissions allow.
-- The final post-merge `main` workflow passes.
-
-These Phase 3 criteria have been addressed by the implemented workflow and recorded validation results. Phase 3 is complete.
+Phase 4 is complete only when implementation, local verification, reusable-repository demonstrations, final benchmark metrics, documentation audit, one consolidated PR, merge, and post-merge `main` verification all pass.

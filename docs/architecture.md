@@ -1,98 +1,86 @@
 # SecurePR Architecture
 
-## 1. System Purpose
+## Overview
+SecurePR is a reusable pull-request security gate. The application being changed is the target; SecurePR is the automation that evaluates the change. The Phase 2 Flask application is only the controlled demonstration target used to develop the gate.
 
-SecurePR places security controls into the pull-request workflow for a small Python application. The architecture separates the application being evaluated from the automation that evaluates it.
-
-## 2. High-Level Flow
-
+## High-Level Flow
 ```text
 Developer
    ↓
 Pull Request
    ↓
-GitHub Actions
+Repository profiling
+   ├── languages
+   ├── manifests
+   └── applicable checks
    ↓
 One SecurePR Security Gate Job
-   ├── Python runtime policy
-   ├── Security tests
-   ├── Secret Detection (Gitleaks)
-   ├── Semgrep SAST
-   ├── Dependency Audit (pip-audit)
-   ├── CodeQL initialization
-   └── CodeQL analysis
+   ├── CodeQL semantic SAST
+   ├── Semgrep SAST + SecurePR rules
+   ├── Gitleaks
+   ├── applicable dependency audit
+   ├── project security/correctness tests
+   ├── normalized SARIF finding aggregation
+   └── per-run accuracy status
    ↓
 PASS / BLOCK
    ↓
-Human review before merge
+Human review is always recommended
 ```
 
-Phase 3 uses one GitHub Actions job named `SecurePR Security Gate`. The individual controls run as separate steps inside that job. This gives the pull request one authoritative SecurePR status while preserving step-level logs for diagnosis. The final step evaluates the configured control outcomes and publishes the PASS/BLOCK summary.
+## Harness Versus Analysis Engines
+SecurePR is the **harness**: it orchestrates tools, determines applicability, enforces blocking policy, normalizes findings, reports benchmark status, and publishes the final result.
 
-## 3. Control Flow
+### CodeQL
+CodeQL is a semantic static-analysis engine. It builds a representation of supported source code and runs security queries against that representation. It is responsible for deep source-code/data-flow analysis; SecurePR consumes its results rather than reimplementing CodeQL.
 
-```text
-Threat
-  ↓
-Security Requirement
-  ↓
-Security Control
-  ↓
-Automated Check
-  ↓
-Finding / Test Result
-  ↓
-SecurePR Security Gate
-  ↓
-PASS / BLOCK
-```
+### Semgrep
+Semgrep provides complementary rule-based SAST. SecurePR also maintains project-specific rules for high-confidence patterns such as hard-coded password/credential values, hard-coded privileged usernames, unsafe dynamic evaluation, and explicitly disabled TLS verification.
 
-Each security concern is mapped to a requirement and one or more controls. The workflow preserves enough tool output to explain a failure without exposing the synthetic secret itself.
+### Gitleaks
+Gitleaks detects credential and secret material. SecurePR treats a detected secret as a blocking control and keeps real credentials out of demonstrations.
 
-## 4. Main Components
+### Dependency analysis
+Dependency tools identify known vulnerabilities in package ecosystems. The reusable workflow applies an audit when a supported dependency manifest is present instead of pretending every repository has Python dependencies.
 
-### Sample Application
+### Project tests
+Project tests verify behavior that static analysis cannot reliably prove. A failing required test blocks the PR.
 
-The Phase 2 application is a deliberately small Flask service. It provides authentication, user-profile, and input-validation behavior that can be exercised by tests and analyzed by security tooling.
+## Repository Profiling
+`scripts/repository_profile.py` detects CodeQL-supported languages and common package manifests while reporting known CodeQL coverage boundaries such as PHP and Scala.
 
-### Security Test Suite
+The profile is used to avoid treating an unsupported language as successfully analyzed. Unsupported source extensions produce an explicit coverage warning.
 
-Pytest exercises application behavior and security properties that static analysis cannot reliably prove. The suite is run in GitHub Actions and can also be run locally through the platform-specific verification scripts.
+## Finding Aggregation
+`scripts/summarize_sarif.py` normalizes findings using artifact location, line, rule, and message. Tool names are retained in the summary so identical cross-tool reports can appear as one meaningful finding. Distinct findings at the same file and line remain separate.
 
-### Static Analysis
+Native tool logs remain available for diagnosis.
 
-CodeQL and Semgrep provide complementary source-code analysis. CodeQL performs semantic analysis and uploads its results to GitHub Code Scanning, while Semgrep provides focused rule-based analysis. A successful CodeQL analysis means the configured analysis completed; it is not a claim that no CodeQL finding exists.
+## Accuracy Reporting
+`scripts/accuracy_report.py` reports the current controlled-benchmark status on every PR. Before the final benchmark is executed, it explicitly reports that the benchmark is pending and makes no accuracy claim. After results exist, it reports TP, FP, TN, precision, recall, and F1.
 
-### Secret Detection
+The benchmark measures the tested corpus and configuration; it does not prove universal detection accuracy.
 
-Gitleaks scans repository changes for credential-like material. The Phase 3 demonstration verified this path with a synthetic AWS-style access key. Gitleaks identified the finding under `aws-access-token`, causing the Secret Detection step to fail and the overall gate to BLOCK.
+## Security Decision
+Only two outcomes are allowed:
 
-### Dependency Analysis
+- **PASS:** all configured blocking controls pass and no blocking normalized finding remains.
+- **BLOCK:** a configured blocking control fails or a blocking normalized finding remains.
 
-pip-audit checks the Python dependency requirements against known vulnerability information. The dependency baseline was adjusted after CI identified a vulnerability in the earlier pytest 8.4.2 resolution; the current requirement is `pytest>=9.0.3,<10`. The Phase 3 secret demonstrations did not change dependencies, so pip-audit passed those runs.
+There is no third `REVIEW` state. Both outcomes state that human review is always recommended.
 
-### SecurePR Security Gate
+## Trust Boundaries
 
-The authoritative gate is the single `SecurePR Security Gate` job. Its configured blocking controls are the runtime policy, dependency installation, security tests, Gitleaks, Semgrep, pip-audit, and successful CodeQL initialization and analysis. If any configured control step does not succeed, the final step publishes `BLOCK` and exits unsuccessfully. If all configured controls succeed, it publishes `PASS`.
+1. Developer-controlled pull-request changes enter the CI environment.
+2. Pull-request source code interacts with GitHub Actions.
+3. External dependency metadata and package installation influence analysis.
+4. Third-party actions and security tools are part of the CI supply chain.
+5. Tool output becomes input to SecurePR's final decision.
+6. A reusable workflow must explicitly identify which repository is being analyzed.
+7. SecurePR tooling must be pinned to an intentional ref so a target repository does not silently analyze itself with unrelated tooling state.
 
-GitHub Code Scanning may display CodeQL results separately in the repository interface. That reporting surface is not a second SecurePR job or a second required SecurePR status check.
+## PR and Main Verification
+A passing PR is not a guarantee that the post-merge `main` execution will pass. The PR and push-to-main workflows are separate executions. Phase 4 completion therefore requires both a passing consolidated PR and a successful post-merge `main` run.
 
-## 5. Phase 3 Demonstration Results
-
-The intentional vulnerable demonstration used a separate pull request and a fake AWS-style credential. Gitleaks failed, while the other configured controls completed successfully. The overall SecurePR result was BLOCK because Secret Detection failed.
-
-The corrected demonstration started from a clean `main` baseline and used an environment variable instead of a committed credential. The configured controls passed and the overall SecurePR result was PASS.
-
-The demonstration pull requests were not merged, so the vulnerable or corrected example files did not alter `main`.
-
-## 6. Reusability
-
-Security checks and gate logic remain sufficiently separated from the sample application's business logic so the workflow can later be adapted to another compatible repository. Reusability is a design goal, not a reason to build a full commercial platform.
-
-## 7. Trust Boundaries
-
-1. Developer-controlled pull-request changes entering the CI environment.
-2. Pull-request source code interacting with GitHub Actions.
-3. External dependency metadata and package installation.
-4. Third-party GitHub Actions and security tools used by the workflow.
-5. Security-tool output becoming inputs to the final PASS/BLOCK result.
+## MVP Reuse Boundary
+The Phase 4 MVP is reusable across the user's own repositories through the reusable workflow. It is intentionally not being packaged for GitHub Marketplace. The design may later support broader distribution without making that a Phase 4 requirement.
