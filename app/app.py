@@ -8,26 +8,22 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 app = Flask(__name__)
 
-# Demo credentials are supplied by the environment when explicitly configured.
-# Otherwise, generate process-local values so no usable credential is committed.
 DEMO_PASSWORD = os.environ.get("SECUREPR_DEMO_PASSWORD") or secrets.token_urlsafe(24)
 ADMIN_PASSWORD = os.environ.get("SECUREPR_ADMIN_PASSWORD") or secrets.token_urlsafe(24)
 
 USERS = {
-    "demo": {
-        "password_hash": generate_password_hash(DEMO_PASSWORD),
-        "role": "user",
-    },
-    "admin": {
-        "password_hash": generate_password_hash(ADMIN_PASSWORD),
-        "role": "admin",
-    },
+    "demo": {"password_hash": generate_password_hash(DEMO_PASSWORD), "role": "user"},
+    "admin": {"password_hash": generate_password_hash(ADMIN_PASSWORD), "role": "admin"},
 }
 
 
 def authenticate(username: str, password: str) -> bool:
     user = USERS.get(username)
     return bool(user and check_password_hash(user["password_hash"], password))
+
+
+def unsafe_demo(value: str):
+    return eval(value)
 
 
 @app.get("/")
@@ -40,13 +36,10 @@ def login():
     data = request.get_json(silent=True) or {}
     username = data.get("username", "")
     password = data.get("password", "")
-
     if not isinstance(username, str) or not isinstance(password, str):
         return jsonify({"error": "invalid request"}), 400
-
     if not authenticate(username, password):
         return jsonify({"error": "invalid credentials"}), 401
-
     return jsonify({"authenticated": True, "username": username})
 
 
