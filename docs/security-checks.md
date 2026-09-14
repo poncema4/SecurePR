@@ -52,7 +52,7 @@ There is no third `REVIEW` gate state. Human review is recommended for both outc
 - unsafe dynamic `eval` / `exec` use
 - explicitly disabled Python TLS certificate verification such as `verify = False`
 
-Tests, documentation, and SecurePR tooling are excluded from these application-source rules where configured by the workflow.
+The hard-coded credential rule uses Semgrep's raw `regex` language so credential-like assignments are matched against file text consistently, including literals containing underscores. Tests, documentation, and SecurePR tooling are excluded from these application-source rules where configured by the workflow.
 
 These custom rules supplement, rather than replace, Semgrep's broader `p/security-audit` rules.
 
@@ -112,7 +112,7 @@ A mapped category `PASS` means its listed automated controls passed. It does not
 
 ## Accuracy
 
-The controlled benchmark is a reviewed ground-truth corpus in `docs/accuracy/benchmark-results.csv`. It currently contains 26 labeled cases: 10 TP, 0 FP, 11 TN, and 5 FN. That corresponds to 80.77% conventional classification accuracy, 100% precision, 66.67% recall, and 80.00% F1 for this controlled corpus.
+The controlled benchmark is a reviewed ground-truth corpus in `docs/accuracy/benchmark-results.csv`. It currently contains 35 labeled cases: 15 TP, 0 FP, 15 TN, and 5 FN. That corresponds to 85.71% conventional classification accuracy, 100% precision, 75.00% recall, and 85.71% F1 for this controlled corpus.
 
 These measurements describe the benchmark and its configuration only. They are not universal real-world accuracy claims. The five false negatives should be treated as evidence of the current benchmark's detection boundaries, not as permission to weaken precision merely to improve a metric.
 
