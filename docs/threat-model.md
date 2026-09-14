@@ -69,7 +69,7 @@ Benchmark data influences reported precision, recall, and F1. The benchmark must
 | T-13 | Reusable workflow analyzes the wrong repository | Explicit target checkout and tooling checkout separation |
 | T-14 | Scanner false positive or false negative | Controlled benchmark and human review |
 | T-15 | PR passes but resulting main state differs | Independent post-merge main workflow |
-| T-16 | Accuracy claim is made before measurement | Per-PR benchmark status and controlled benchmark |
+| T-16 | Accuracy claim is made before measurement | Per-PR labeled expected-vs-actual reporting and controlled benchmark |
 
 ## Security-Gate Assessment
 
@@ -77,7 +77,7 @@ The gate has been validated through pull-request executions and independent post
 
 The MVP expands this model to repository portability, multi-language analysis, finding aggregation, and empirical accuracy measurement. It does not claim that unsupported languages, design-level issues, or business-logic weaknesses are automatically proven safe.
 
-The controlled benchmark measures false positives and false negatives using TP, FP, TN, precision, recall, and F1 on a defined corpus.
+The controlled benchmark measures false positives and false negatives using TP, FP, TN, precision, recall, and F1 on a defined corpus. Real pull requests can also be used as labeled benchmark cases when a trusted reviewer supplies the expected outcome before the relevant gate run.
 
 ## Risk Treatment
 
