@@ -52,7 +52,11 @@ There is no third `REVIEW` gate state. Human review is recommended for both outc
 - unsafe dynamic `eval` / `exec` use
 - explicitly disabled Python TLS certificate verification such as `verify = False`
 
-The hard-coded credential rule uses Semgrep's raw `regex` language so credential-like assignments are matched against file text consistently, including literals containing underscores. Tests, documentation, and SecurePR tooling are excluded from these application-source rules where configured by the workflow.
+The hard-coded credential policy uses Semgrep's raw `regex` language for non-Python source files and a Python AST-based assignment rule for Python files. The Python rule is constrained to credential-like variable names and string literals of at least eight characters. This two-path design closes the validated manual false negative from PR #64 while preserving the raw-text coverage for non-Python files.
+
+The PR #64 regression was a synthetic `password = "demo_password"` assignment that returned PASS even though the expected outcome was BLOCK. It is retained in the benchmark as an FN rather than being reclassified. The follow-up fix is validated independently before merge.
+
+Tests, documentation, and SecurePR tooling are excluded from these application-source rules where configured by the workflow.
 
 These custom rules supplement, rather than replace, Semgrep's broader `p/security-audit` rules.
 
@@ -112,9 +116,11 @@ A mapped category `PASS` means its listed automated controls passed. It does not
 
 ## Accuracy
 
-The controlled benchmark is a reviewed ground-truth corpus in `docs/accuracy/benchmark-results.csv`. It currently contains 35 labeled cases: 15 TP, 0 FP, 15 TN, and 5 FN. That corresponds to 85.71% conventional classification accuracy, 100% precision, 75.00% recall, and 85.71% F1 for this controlled corpus.
+The controlled benchmark is a reviewed ground-truth corpus in `docs/accuracy/benchmark-results.csv`. It currently contains 37 labeled cases: 15 TP, 0 FP, 16 TN, and 6 FN. That corresponds to 83.78% conventional classification accuracy, 100% precision, 71.43% recall, and 83.33% F1 for this controlled corpus.
 
-These measurements describe the benchmark and its configuration only. They are not universal real-world accuracy claims. The five false negatives should be treated as evidence of the current benchmark's detection boundaries, not as permission to weaken precision merely to improve a metric.
+PR #63 / Actions run #202 is the latest PASS benchmark case. PR #64 / Actions run #203 is the latest BLOCK-expected case and is recorded as an FN because the observed gate result was PASS. The credential-detection fix is validated independently before it is treated as production behavior.
+
+These measurements describe the benchmark and its configuration only. They are not universal real-world accuracy claims. The six false negatives should be treated as evidence of the current benchmark's detection boundaries, not as permission to weaken precision merely to improve a metric.
 
 ## Gate Design
 
