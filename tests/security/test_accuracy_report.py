@@ -9,7 +9,7 @@ def test_accuracy_report_is_explicitly_pending_before_final_benchmark(tmp_path: 
     report = render(tmp_path / "missing-results.csv")
 
     assert "Benchmark pending" in report
-    assert "no accuracy percentage is claimed" in report
+    assert "No accuracy percentage is claimed" in report
 
 
 def test_accuracy_report_renders_measured_metrics(tmp_path: Path) -> None:
