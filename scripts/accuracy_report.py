@@ -7,10 +7,8 @@ from pathlib import Path
 
 try:
     from scripts.accuracy_metrics import calculate
-    from scripts.owasp_report import render as render_owasp
 except ModuleNotFoundError:
     from accuracy_metrics import calculate
-    from owasp_report import render as render_owasp
 
 
 DEFAULT_RESULTS = Path("docs/accuracy/benchmark-results.csv")
@@ -87,8 +85,7 @@ def render(path: Path) -> str:
             "The cumulative benchmark is reported, but this ordinary PR is not counted as a TP, FP, TN, or FN."
         )
 
-    owasp = render_owasp(Path("."))
-    return cumulative + current_case + "\n\n" + formulas + "\n\n" + owasp
+    return cumulative + current_case + "\n\n" + formulas
 
 
 def main() -> int:
