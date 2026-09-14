@@ -21,19 +21,19 @@ Both expected and actual values must be known before a row contributes to the me
 
 ## Current MVP benchmark
 
-The current reviewed corpus contains 26 labeled cases:
+The current reviewed corpus contains 35 labeled cases:
 
-- TP: 10
+- TP: 15
 - FP: 0
-- TN: 11
+- TN: 15
 - FN: 5
 
 Therefore:
 
-- Conventional classification accuracy: `(TP + TN) / total` = **80.77%**
+- Conventional classification accuracy: `(TP + TN) / total` = **85.71%**
 - Precision: **100%**
-- Recall: **66.67%**
-- F1: **80.00%**
+- Recall: **75.00%**
+- F1: **85.71%**
 
 The five false negatives are part of the measured MVP behavior. They should be investigated as possible detection gaps or application-context limitations rather than hidden or reclassified solely to improve a metric.
 
