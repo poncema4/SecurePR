@@ -108,9 +108,10 @@ The overall gate remains unchanged:
 The OWASP table is finding-driven:
 
 1. Each SARIF finding is inspected for an explicit OWASP tag, an OWASP-mapped CWE, or a SecurePR custom rule with a documented category mapping.
-2. A category is `BLOCK` only if one or more findings map to that category.
-3. A category is `PASS` when no mapped finding exists for that category in the run.
-4. An unmapped finding still affects the overall SecurePR gate but is not assigned to an OWASP category without sufficient evidence.
+2. SecurePR custom rule IDs are normalized to their final rule component so SARIF IDs such as `securepr-tooling.securepr-python-hardcoded-credential` still match the documented SecurePR rule mapping.
+3. A category is `BLOCK` only if one or more findings map to that category.
+4. A category is `PASS` when no mapped finding exists for that category in the run.
+5. An unmapped finding still affects the overall SecurePR gate but is not assigned to an OWASP category without sufficient evidence.
 
 This prevents the previous behavior where a single failed Semgrep control caused all ten rows to show `BLOCK`. For example, a hardcoded credential maps to A04/A07, while an unsafe `eval` finding maps to A05; neither should make unrelated categories red merely because Semgrep failed.
 
