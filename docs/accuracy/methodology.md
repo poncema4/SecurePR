@@ -24,7 +24,7 @@ A real PR can be evaluated as a benchmark case during its Actions run when a tru
 - `securepr-expected-pass`
 - `securepr-expected-block`
 
-SecurePR immediately reports the current PR's expected result, actual gate result, and whether the classification is correct. It also reports the cumulative metrics from the committed CSV.
+The pull-request workflow listens for the `labeled` event. Adding one of these labels therefore starts a fresh gate run against the current PR head. SecurePR reports the current PR's expected result, actual SecurePR result, and whether the classification is correct, while also reporting the cumulative metrics from the committed CSV.
 
 This current-PR measurement does not automatically modify the CSV. The expected result is ground truth and must be deliberately reviewed before becoming permanent benchmark evidence.
 
