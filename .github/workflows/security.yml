@@ -18,9 +18,192 @@ permissions:
 
 jobs:
   security-gate:
-    uses: ./.github/workflows/reusable-security.yml
-    with:
-      tooling-repository: poncema4/SecurePR
-      tooling-ref: ${{ github.event.pull_request.head.sha || github.sha }}
-      python-version: "3.12"
-      run_project_tests: true
+    name: SecurePR Security Gate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout target repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Checkout SecurePR tooling at PR commit
+        uses: actions/checkout@v6
+        with:
+          repository: poncema4/SecurePR
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          path: .securepr-tooling
+          sparse-checkout: |
+            scripts/accuracy_report.py
+            scripts/accuracy_metrics.py
+            scripts/repository_profile.py
+            scripts/summarize_sarif.py
+            .semgrep_securepr.yml
+            docs/accuracy/benchmark-results.csv
+
+      - name: Set up Python for SecurePR tooling
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Detect repository profile
+        id: profile
+        run: python .securepr-tooling/scripts/repository_profile.py
+
+      - name: Install Python project dependencies
+        id: python-install
+        if: hashFiles('requirements.txt') != ''
+        continue-on-error: true
+        run: python -m pip install -r requirements.txt
+
+      - name: Python project tests
+        id: python-tests
+        if: hashFiles('requirements.txt') != '' && hashFiles('tests/**/*.py') != ''
+        continue-on-error: true
+        run: python -m pytest -q
+
+      - name: JavaScript or TypeScript tests
+        id: node-tests
+        if: hashFiles('package.json') != ''
+        continue-on-error: true
+        run: |
+          if [[ -f package-lock.json ]]; then
+            npm ci --ignore-scripts
+          else
+            npm install --ignore-scripts
+          fi
+          npm test --if-present
+          npm run typecheck --if-present
+
+      - name: Dependency audit
+        id: dependency-audit
+        continue-on-error: true
+        run: |
+          found=0
+          if [[ -f requirements.txt ]]; then
+            found=1
+            python -m pip install pip-audit
+            pip-audit -r requirements.txt
+          fi
+          if [[ -f package-lock.json ]]; then
+            found=1
+            npm audit --package-lock-only --audit-level=high
+          fi
+          if [[ "$found" -eq 0 ]]; then
+            echo "No currently supported dependency manifest was found; dependency audit is not applicable."
+          fi
+
+      - name: Secret detection
+        id: gitleaks
+        continue-on-error: true
+        uses: gitleaks/gitleaks-action@v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_ENABLE_COMMENTS: "false"
+          GITLEAKS_ENABLE_SUMMARY: "false"
+
+      - name: Semgrep SAST
+        id: semgrep
+        continue-on-error: true
+        run: |
+          python -m pip install semgrep
+          semgrep scan --sarif --output semgrep-results.sarif --config p/security-audit --config .securepr-tooling/.semgrep_securepr.yml --error --exclude tests --exclude docs --exclude .securepr-tooling
+
+      - name: CodeQL initialization
+        id: codeql-init
+        if: steps.profile.outputs.codeql_languages != ''
+        continue-on-error: true
+        uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ steps.profile.outputs.codeql_languages }}
+          queries: security-extended
+
+      - name: CodeQL analysis
+        id: codeql-analyze
+        if: steps.profile.outputs.codeql_languages != ''
+        continue-on-error: true
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: /language:multi
+          output: codeql-results
+
+      - name: Normalize SAST findings
+        id: finding-summary
+        if: always()
+        continue-on-error: true
+        run: |
+          python .securepr-tooling/scripts/summarize_sarif.py .
+          if [[ -f securepr-findings.md ]]; then cat securepr-findings.md >> "$GITHUB_STEP_SUMMARY"; fi
+
+      - name: Accuracy status
+        id: accuracy
+        if: always()
+        continue-on-error: true
+        run: |
+          python .securepr-tooling/scripts/accuracy_report.py > securepr-accuracy.md
+          cat securepr-accuracy.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Publish SecurePR result
+        if: always()
+        env:
+          PROFILE: ${{ steps.profile.outcome }}
+          CODEQL_LANGUAGES: ${{ steps.profile.outputs.codeql_languages }}
+          UNSUPPORTED_EXTENSIONS: ${{ steps.profile.outputs.unsupported_extensions }}
+          PYTHON_INSTALL: ${{ steps.python-install.outcome }}
+          PYTHON_TESTS: ${{ steps.python-tests.outcome }}
+          NODE_TESTS: ${{ steps.node-tests.outcome }}
+          DEPENDENCY: ${{ steps.dependency-audit.outcome }}
+          GITLEAKS: ${{ steps.gitleaks.outcome }}
+          SEMGREP: ${{ steps.semgrep.outcome }}
+          CODEQL_INIT: ${{ steps.codeql-init.outcome }}
+          CODEQL_ANALYZE: ${{ steps.codeql-analyze.outcome }}
+          FINDING_SUMMARY: ${{ steps.finding-summary.outcome }}
+          ACCURACY: ${{ steps.accuracy.outcome }}
+        run: |
+          blocking=0
+          for value in "$PROFILE" "$PYTHON_INSTALL" "$PYTHON_TESTS" "$NODE_TESTS" "$DEPENDENCY" "$GITLEAKS" "$SEMGREP" "$CODEQL_INIT" "$CODEQL_ANALYZE" "$FINDING_SUMMARY"; do
+            if [[ "$value" == "failure" ]]; then blocking=1; fi
+          done
+          if [[ "$ACCURACY" == "failure" ]]; then blocking=1; fi
+
+          if [[ "$blocking" -eq 0 ]]; then
+            echo "## 🟢 SecurePR: PASS" >> "$GITHUB_STEP_SUMMARY"
+            echo "All applicable automated SecurePR controls passed. Human review is always recommended before merge." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "## 🔴 SecurePR: BLOCK" >> "$GITHUB_STEP_SUMMARY"
+            echo "One or more required SecurePR controls failed. Review the tool output, remediate the finding, and rerun the gate. Human review is always recommended." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "### Repository Coverage" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Profile: ${PROFILE:-not available}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- CodeQL languages: ${CODEQL_LANGUAGES:-none detected}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Unsupported-by-CodeQL extensions: ${UNSUPPORTED_EXTENSIONS:-none detected}" >> "$GITHUB_STEP_SUMMARY"
+
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "### Check Results" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Check | Result |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Repository profile | ${PROFILE:-not applicable} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Python dependency installation | ${PYTHON_INSTALL:-not applicable} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Python project tests | ${PYTHON_TESTS:-not applicable} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| JavaScript/TypeScript tests | ${NODE_TESTS:-not applicable} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Dependency audit | ${DEPENDENCY:-not applicable} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Secret detection | ${GITLEAKS:-not applicable} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Semgrep SAST | ${SEMGREP:-not applicable} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| CodeQL | ${CODEQL_ANALYZE:-not applicable} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Normalized findings | ${FINDING_SUMMARY:-not applicable} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Accuracy status | ${ACCURACY:-not applicable} |" >> "$GITHUB_STEP_SUMMARY"
+
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "### Fixes to make this PASS" >> "$GITHUB_STEP_SUMMARY"
+          if [[ "$blocking" -eq 0 ]]; then
+            echo "No blocking fixes are required for this run. Human review is always recommended, including review of security design, business logic, authorization intent, configuration, and tool coverage." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Review each failed control's native Actions output. Correct the underlying issue rather than suppressing a finding without evidence. Then push the remediation and rerun SecurePR. Human review is always recommended after remediation." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "### Human review and accuracy boundary" >> "$GITHUB_STEP_SUMMARY"
+          echo "SecurePR provides automated security evidence, not a guarantee that a repository is vulnerability-free. Human review is always recommended. Automated analysis can produce false positives and false negatives, especially for business logic, runtime behavior, configuration, architecture, and unsupported language/tool coverage." >> "$GITHUB_STEP_SUMMARY"
+
+          if [[ "$blocking" -ne 0 ]]; then exit 1; fi
