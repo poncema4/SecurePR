@@ -4,7 +4,7 @@
 
 SecurePR uses GitHub Actions for pull-request security checks and independent post-merge `main` verification.
 
-The authoritative workflow is `.github/workflows/security.yml`. It calls `.github/workflows/reusable-security.yml`, which contains the actual gate implementation.
+The authoritative workflow is `.github/workflows/security.yml`. It contains the gate implementation, while `.github/workflows/reusable-security.yml` provides the reusable workflow for other repositories.
 
 ## One-job architecture
 
@@ -22,6 +22,7 @@ name: SecurePR Security Gate
 on:
   pull_request:
     branches: [main]
+    types: [opened, synchronize, reopened, labeled]
   push:
     branches: [main]
 
@@ -45,7 +46,7 @@ For a controlled real-PR benchmark, a trusted reviewer adds one of:
 - `securepr-expected-pass`
 - `securepr-expected-block`
 
-The workflow then reports the current PR's expected result, actual SecurePR result, and whether the classification is correct, alongside cumulative TP, FP, TN, precision, recall, and F1.
+The workflow listens for the `labeled` pull-request event as well as normal PR updates. Adding one of the expected-outcome labels therefore triggers a fresh SecurePR run using the current PR head and reports the current PR's expected result, actual SecurePR result, and whether the classification is correct, alongside cumulative TP, FP, TN, precision, recall, and F1.
 
 The benchmark CSV is not automatically changed by the PR run. Permanent benchmark history is updated deliberately after the case has been reviewed and verified.
 
@@ -89,6 +90,6 @@ PR → SecurePR PASS → human review → merge
 3. Fix any blocking result on the same PR branch.
 4. Confirm `SecurePR Security Gate` passes.
 5. Inspect the Actions summary and evidence artifacts.
-6. If benchmarking a real PR, add the trusted expected-outcome label and verify expected versus actual.
+6. If benchmarking a real PR, add the trusted expected-outcome label and verify the label-triggered run reports expected versus actual.
 7. After merge, confirm the independent `main` run passes.
 8. Add verified benchmark cases to the CSV through a reviewed change.
