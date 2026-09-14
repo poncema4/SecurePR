@@ -79,7 +79,9 @@ The gate has been validated through pull-request executions and independent post
 
 The MVP expands this model to repository portability, multi-language analysis, multiple underlying security engines, finding aggregation, and empirical accuracy measurement. It does not claim that unsupported languages, design-level issues, or business-logic weaknesses are automatically proven safe.
 
-The current controlled benchmark contains 26 labeled cases: 10 TP, 0 FP, 11 TN, and 5 FN. This produces 80.77% conventional classification accuracy, 100% precision, 66.67% recall, and 80.00% F1 for the controlled corpus only.
+The current controlled benchmark contains 37 labeled cases: 15 TP, 0 FP, 16 TN, and 6 FN. This produces 83.78% conventional classification accuracy, 100% precision, 71.43% recall, and 83.33% F1 for the controlled corpus only.
+
+PR #64 is explicitly retained as the newest measured false negative: a synthetic hardcoded password was expected to BLOCK but the gate returned PASS. The follow-up credential-detection fix adds a Python AST-based rule and is validated independently before merge.
 
 ## Risk Treatment
 
