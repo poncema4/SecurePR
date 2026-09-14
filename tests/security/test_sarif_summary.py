@@ -5,7 +5,7 @@ from scripts.summarize_sarif import finding_key, iter_results
 
 
 def test_sarif_results_are_read_and_keyed():
-    results = tmp_path = Path(__file__).parent / "_temporary_test_sarif.json"
+    results = Path(__file__).parent / "_temporary_test.sarif"
     try:
         results.write_text(json.dumps({
             "runs": [{
