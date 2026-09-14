@@ -25,3 +25,5 @@ mock-023,benign-security-text,Security terminology without credential assignment
 mock-024,insecure-design,Missing second-person approval business rule,BLOCK,PASS,PR #46 / Actions run #171
 mock-025,authorization,Missing ownership or role authorization check,BLOCK,PASS,PR #47 / Actions run #173
 mock-026,password-policy,Weak minimum password policy,BLOCK,PASS,PR #48 / Actions run #175
+mock-027,safe-change,Controlled benchmark case 027 expected PASS,PASS,PASS,PR #50 / Actions run #182
+mock-028,hardcoded-credential,Controlled benchmark case 028 expected BLOCK,BLOCK,BLOCK,PR #51 / Actions run #183
